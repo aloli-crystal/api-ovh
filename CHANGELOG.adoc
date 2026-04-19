@@ -1,0 +1,64 @@
+= Changelog
+:toc: left
+:toclevels: 2
+
+Toutes les modifications notables de ce projet sont documentées dans ce fichier.
+
+Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
+et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
+
+== [Non publié]
+
+=== Ajouté
+
+==== Fondations du projet
+
+* Squelette initial (`shard.yml`, `LICENSE` MIT, README bilingue FR/EN).
+* Convention Aloli : branche par défaut `production`, messages de commit
+  en français, licence MIT, auteurs `ALOLI sas`.
+
+==== Cœur du client
+
+* `OvhApi::Client` : signature `X-Ovh-Signature` locale (SHA-1 hex préfixé
+  par `$1$`), calculée sur `secret+ck+method+url+body+timestamp`.
+* Synchronisation d'horloge via `/auth/time` (mémorisation d'un offset,
+  évite de re-interroger à chaque appel).
+* Routage multi-endpoint : `:eu` (défaut), `:ca`, `:us`, Kimsufi EU/CA,
+  SoYouStart EU/CA. L'argument accepte aussi une URL complète.
+* Transport HTTP abstrait `OvhApi::HttpTransport` avec implémentation
+  `DefaultHttpTransport` (stdlib `HTTP::Client`), permet l'injection d'un
+  double en test.
+
+==== Endpoints de provisioning
+
+* *SSH keys* (`/me/sshKey`) : `list`, `get`, `create(name, key, default)`,
+  `delete`.
+* *Dedicated servers* (`/dedicated/server`) : `list`, `info`, `reinstall`
+  (endpoint moderne 2024 avec `operatingSystem` + `customizations`),
+  `installation_templates`, `tasks` (avec filtres `function`/`status`),
+  `task` (détail individuel).
+* *Reverse DNS* (`/ip/{ip}/reverse`) : `list`, `get_reverse`, `set_reverse`,
+  `delete_reverse`.
+
+==== Taxonomie d'erreurs
+
+* `OvhApi::Error` (base).
+* `AuthenticationError` (HTTP 401/403).
+* `NotFound` (HTTP 404).
+* `RateLimited` (HTTP 429, expose `retry_after`).
+* `ApiError` (autres, expose `http_status` et `error_code`).
+
+==== Tests et exemples
+
+* Specs Crystal avec `FakeTransport` pur stdlib (aucun appel réseau) :
+  signature, offset d'horloge, en-têtes, corps JSON, query string,
+  gestion d'erreurs, sérialisation des `Task` et `Reverse`.
+* Vecteur de signature déterministe recalculé à la main dans les specs.
+* Exemple exécutable `examples/provision_debian.cr` : installation Debian 12
+  + polling de tâche + pose de reverse DNS, avec garde-fou `OVH_CONFIRM=yes`.
+
+==== Intégration continue
+
+* CI GitHub Actions : format Crystal + specs sur Linux et FreeBSD 15
+  via `cross-platform-actions/action`, avec compilation de l'exemple
+  (`mkdir -p bin && crystal build ...`).

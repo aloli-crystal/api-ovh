@@ -1,0 +1,14 @@
+/bin/
+/.shards/
+/lib/
+/tmp/
+*.dwarf
+
+# Fichiers de credentials OVH (ne jamais versionner)
+/credentials.yml
+/credentials.local.yml
+*.secret.yml
+.env
+
+# macOS
+.DS_Store

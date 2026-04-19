@@ -1,0 +1,187 @@
+= ovh-api — Architecture
+:toc: left
+:toc-title: Table des matières
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+
+Ce document décrit la signature OVHcloud, le routage multi-endpoint et la
+taxonomie d'erreurs exposée par ce shard.
+
+== Périmètre
+
+[cols="1,3"]
+|===
+| ovh-api fait | ovh-api ne fait pas
+
+| Calcul local de la signature `X-Ovh-Signature`.
+| OAuth 2.0 applicatif (pas supporté par l'API v1).
+
+| Synchronisation d'horloge via `/auth/time` (une fois par process).
+| Cache distribué d'offset entre plusieurs process.
+
+| Transport HTTP abstrait, injectable, stdlib par défaut.
+| Client HTTP asynchrone à la place de `HTTP::Client`.
+
+| Taxonomie d'erreurs fine (401 / 404 / 429 / autres).
+| Backoff automatique sur 429 (l'appelant gère `retry_after`).
+|===
+
+== Décisions clés
+
+=== ADR-001 — Pure stdlib Crystal (Accepted)
+
+*Contexte.* Le shard vise une intégration dans crystal-beryl, qui est
+déjà en pure stdlib. Ajouter une dépendance (crest, halite…) démultiplierait
+la surface de maintenance.
+
+*Décision.* ovh-api n'utilise que `HTTP::Client`, `OpenSSL`/`Digest::SHA1`,
+`JSON` et `URI` de la stdlib. Aucun `dependencies:` dans `shard.yml`.
+
+*Conséquences.* Pas de `WebMock` non plus : les tests utilisent un
+`FakeTransport` maison, plus simple et explicite (cf. ADR-004).
+
+=== ADR-002 — Schéma de signature X-Ovh-Signature (Accepted)
+
+*Contexte.* L'API v1 OVH impose ce schéma : quatre en-têtes
+(`X-Ovh-Application`, `X-Ovh-Consumer`, `X-Ovh-Timestamp`, `X-Ovh-Signature`)
+où la signature est un SHA-1 hex préfixé par `$1$`.
+
+*Décision.* Implémentation littérale du schéma, calculée sur :
+
+----
+"$1$" + SHA1_HEX( application_secret + "+" +
+                  consumer_key       + "+" +
+                  HTTP_METHOD        + "+" +
+                  FULL_URL           + "+" +
+                  BODY_STRING        + "+" +
+                  TIMESTAMP )
+----
+
+Le `FULL_URL` *inclut* la query string (après l'éventuel `?`). Le
+`BODY_STRING` est le corps JSON compact *exact* envoyé (pas de re-sérialisation
+intermédiaire, sinon la signature diverge).
+
+*Vecteur de test.* `secret=appsecret, ck=ck, method=GET,
+url=https://eu.api.ovh.com/1.0/me, body="", ts=1700000000` doit produire
+`"$1$" + SHA1_HEX("appsecret+ck+GET+https://eu.api.ovh.com/1.0/me++1700000000")`.
+Voir `spec/ovh_api/client_spec.cr`.
+
+=== ADR-003 — Offset d'horloge mémorisé (Accepted)
+
+*Contexte.* OVH accepte un écart de 30 secondes entre `X-Ovh-Timestamp` et
+l'heure serveur. Si l'horloge locale dérive, toutes les requêtes sont
+rejetées avec `INVALID_SIGNATURE`.
+
+*Décision.* À la première requête signée, ovh-api interroge `/1.0/auth/time`
+(endpoint non signé) et calcule `delta = time_ovh - time_local`. Les appels
+suivants utilisent `Time.utc.to_unix + delta` sans nouvel aller-retour.
+
+*Conséquences.* Un process long-running résilient à une dérive de NTP (la
+dérive est figée au démarrage). Si elle pose problème, l'appelant peut
+réinitialiser `client.time_delta = nil`.
+
+=== ADR-004 — Transport HTTP abstrait (Accepted)
+
+*Contexte.* Pour tester la signature et la gestion d'erreurs sans appel
+réseau, et sans WebMock, il faut intercepter la couche HTTP.
+
+*Décision.* Classe abstraite `OvhApi::HttpTransport` avec une seule méthode
+`#request(method, url, headers, body) : {Int32, String}`. Deux
+implémentations : `DefaultHttpTransport` (stdlib `HTTP::Client`) et
+`FakeTransport` (dans `spec_helper.cr`, enregistre les requêtes et renvoie
+des stubs prédéfinis).
+
+*Conséquences.* Les specs sont déterministes, sans flakiness réseau, et
+exécutent le code de signature réel. Le coût est minime : une interface et
+une classe de stub.
+
+=== ADR-005 — Taxonomie d'erreurs (Accepted)
+
+*Contexte.* OVH renvoie différents codes HTTP avec des sémantiques variées.
+Laisser remonter une `Exception` générique force l'appelant à parser le
+message.
+
+*Décision.*
+
+[cols="1,1,3"]
+|===
+| HTTP | Classe | Sens
+
+| 401, 403 | `AuthenticationError` | Clé/consumer invalide, signature rejetée, scope manquant.
+| 404      | `NotFound`            | Ressource absente (service, IP, clé SSH, tâche).
+| 429      | `RateLimited`         | Quota dépassé. Expose `#retry_after` (secondes).
+| 5xx / autres | `ApiError`        | Expose `#http_status` et `#error_code` (champ `errorCode` / `class` du corps).
+|===
+
+Toutes héritent de `OvhApi::Error`, ce qui permet un `rescue` global.
+
+=== ADR-006 — Endpoint moderne pour la réinstallation (Accepted)
+
+*Contexte.* OVH a deux endpoints historiques :
+
+* `/dedicated/server/{serviceName}/install/start` — schéma 2015, paramètres
+  plats (`templateName`, `details` avec sous-champs).
+* `/dedicated/server/{serviceName}/reinstall` — schéma 2024, paramètres
+  structurés (`operatingSystem`, `customizations`, `storage`).
+
+Le schéma moderne couvre les serveurs gamme récente (Scale, Advance, High
+Grade, Kimsufi 2024+). Certains serveurs legacy ne sont supportés que par
+`install/start`.
+
+*Décision.* Par défaut, `#reinstall` appelle l'endpoint moderne. Le
+paramètre `extra:` permet d'ajouter des champs libres. Un fallback explicite
+vers `install/start` sera ajouté en v0.2 si un utilisateur rencontre un
+serveur rejeté par `reinstall`.
+
+=== ADR-007 — Licence et dépôt (Accepted)
+
+* Licence : *MIT*, conforme à la convention des shards Aloli.
+* Organisation GitHub : https://github.com/aloli-crystal[aloli-crystal].
+* Nom du dépôt : `crystal-ovh-api`, nom du shard : `ovh-api`.
+* Branche par défaut : `production` (convention Aloli).
+* Langue des messages de commit : français.
+
+== Flux de signature
+
+----
+┌───────────────┐                  ┌───────────────┐
+│  OvhApi::Client│                  │  OVH API       │
+│                │                  │                │
+│   sign()       │ ──── GET /auth/time ─────────►    │
+│                │ ◄──── 1700000000 ────────────     │
+│   time_delta   │                  │                │
+│                │                  │                │
+│   call()       │ ──── GET /me ────────────────►    │
+│    + X-Ovh-*   │                  │                │
+│                │ ◄──── 200 JSON ──────────────     │
+└───────────────┘                  └───────────────┘
+----
+
+== Flux de réinstallation
+
+. `client.ssh_keys.list` → vérifier que la clé cible existe (faute de quoi
+  le `customizations.sshKey` est rejeté).
+. `client.dedicated_servers.installation_templates` → vérifier le template.
+. `client.dedicated_servers.reinstall(...)` → crée une `Task`.
+. Polling de `client.dedicated_servers.task(...)` toutes les 30 s jusqu'à
+  `task.done?`.
+. `client.ips.set_reverse(ip:, reverse: "hostname.")` → DNS inverse.
+
+Un cycle install + reverse dure typiquement 20 à 60 minutes côté OVH.
+
+== Feuille de route
+
+=== v0.2 (envisagé)
+
+* `/order/cart` : commander un nouveau serveur depuis zéro.
+* Fallback `install/start` pour les serveurs legacy.
+* Helper `#wait_for_task(service_name, task_id, interval:)` synchrone.
+* Support `?extras` sur `/dedicated/installationTemplate` (partitions
+  personnalisées).
+
+=== v1.0 (non engagé)
+
+* Couverture des endpoints VPS, cloud public, load balancer.
+* Streaming de logs d'installation (`/dedicated/server/*/installLog`).
+* Support WebSocket de la documentation dynamique OVH.

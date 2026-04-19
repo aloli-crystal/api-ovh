@@ -1,0 +1,166 @@
+= ovh-api
+:toc: left
+:toc-title: Table of Contents
+:toclevels: 3
+:source-highlighter: rouge
+:icons: font
+
+Pure-Crystal client (stdlib only) for the https://api.ovh.com/console/[OVHcloud v1 API].
+Covers the endpoints needed to provision dedicated servers: SSH keys, install +
+task polling, reverse DNS.
+
+[NOTE]
+====
+*ovh-api* is a sister project in the Aloli Crystal ecosystem alongside
+https://github.com/aloli-crystal/crystal-beryl[crystal-beryl] (agentless FreeBSD
+configuration) and https://github.com/aloli-crystal/crystal-silex[crystal-silex]
+(pure-Crystal FAT12 / cloud-init NoCloud writer). Zero external dependencies: only
+`HTTP::Client`, `OpenSSL`, `JSON` from the Crystal stdlib.
+====
+
+== Why ovh-api?
+
+OVH's official clients exist in Python, Node, Go, PHP and Java, but not Crystal.
+Existing Crystal wrappers are abandoned or pull in third-party HTTP shards.
+
+ovh-api computes the `X-Ovh-Signature` locally (SHA-1), uses stdlib only, and
+exposes an idiomatic Crystal API that is easy to test by injecting a fake HTTP
+transport.
+
+== Features
+
+* *Pure Crystal*: no runtime dependencies (stdlib `HTTP::Client`, `OpenSSL`, `JSON`).
+* *OVH signature*: local `$1$ + SHA1(secret+ck+method+url+body+timestamp)`.
+* *Clock offset*: `/auth/time` queried once and cached for the process lifetime.
+* *Multi-endpoint routing*: `:eu` (default), `:ca`, `:us`, Kimsufi, SoYouStart.
+* *Injectable transport*: abstract `HttpTransport`, trivial stub for specs.
+* *Error taxonomy*: `AuthenticationError`, `NotFound`, `RateLimited`,
+  `ApiError` (exposes `errorCode` + `http_status`).
+
+== Scope
+
+[cols="1,3"]
+|===
+| ovh-api does | ovh-api does not (yet)
+
+| SSH keys (`/me/sshKey`): list, get, create, delete.
+| Full account management (`/me/*`).
+
+| Dedicated servers: list, info, reinstall, tasks.
+| Ordering (`/order/cart`) — planned for v0.2.
+
+| Reverse DNS (`/ip/{ip}/reverse`): list, get, set, delete.
+| VPS, public cloud, CDN, web hosting.
+
+| Full signing, clock sync, 401/403/404/429 handling.
+| OAuth 2.0 app flow (API Keys remain OVH's official scheme).
+|===
+
+== Installation
+
+In your `shard.yml`:
+
+[source,yaml]
+----
+dependencies:
+  ovh-api:
+    github: aloli-crystal/crystal-ovh-api
+    version: ~> 0.1
+----
+
+Then `shards install`.
+
+== Quick start
+
+[source,crystal]
+----
+require "ovh-api"
+
+client = OvhApi::Client.new(
+  application_key:    ENV["OVH_APPLICATION_KEY"],
+  application_secret: ENV["OVH_APPLICATION_SECRET"],
+  consumer_key:       ENV["OVH_CONSUMER_KEY"],
+  endpoint:           :eu,
+)
+
+# SSH keys
+client.ssh_keys.list                              # => ["laptop", "desktop"]
+client.ssh_keys.create(name: "laptop", key: "ssh-ed25519 AAAA...")
+
+# Dedicated servers
+servers = client.dedicated_servers.list           # => ["ns1.ip-1-2-3.eu"]
+info    = client.dedicated_servers.info(servers.first)
+
+# Reinstall Debian 12
+task = client.dedicated_servers.reinstall(
+  service_name: "ns1.ip-1-2-3.eu",
+  template:     "debian12_64",
+  hostname:     "web01.aloli.fr",
+  ssh_key_name: "laptop",
+)
+
+# Poll
+loop do
+  status = client.dedicated_servers.task(
+    service_name: "ns1.ip-1-2-3.eu",
+    task_id:      task.id,
+  )
+  break if status.done?
+  sleep 30.seconds
+end
+
+# Reverse DNS
+client.ips.set_reverse(ip: "192.0.2.10", reverse: "web01.aloli.fr.")
+----
+
+Full runnable example in link:examples/provision_debian.cr[`examples/provision_debian.cr`].
+
+== Getting OVH credentials
+
+. Create an application at https://eu.api.ovh.com/createApp/[eu.api.ovh.com/createApp] →
+  you get `application_key` and `application_secret`.
+. Generate a consumer key with the required scopes at
+  https://eu.api.ovh.com/createToken/[eu.api.ovh.com/createToken]:
++
+[source]
+----
+GET  /me/sshKey
+POST /me/sshKey
+GET  /dedicated/server
+GET  /dedicated/server/*
+GET  /dedicated/installationTemplate
+POST /dedicated/server/*/reinstall
+GET  /dedicated/server/*/task
+GET  /dedicated/server/*/task/*
+GET  /ip/*/reverse
+POST /ip/*/reverse
+----
+. Validate the URL returned by OVH (SMS or OVH password manager). The consumer
+  key becomes active.
+
+== Running against the real API
+
+Specs use a `FakeTransport` (stdlib-only) with no network calls. For an
+integration run against the real OVH API:
+
+[source,sh]
+----
+export OVH_APPLICATION_KEY=...
+export OVH_APPLICATION_SECRET=...
+export OVH_CONSUMER_KEY=...
+crystal run examples/provision_debian.cr
+----
+
+Without `OVH_CONFIRM=yes`, the example stops *before* launching the reinstall:
+it just lists keys, servers and templates.
+
+== Status
+
+Early stage (v0.1 — provisioning endpoints covered).
+
+* link:ARCHITECTURE.adoc[ARCHITECTURE.adoc] — signing, routing, error taxonomy.
+* link:CHANGELOG.adoc[CHANGELOG.adoc] — changelog.
+
+== License
+
+MIT. See link:LICENSE[LICENSE].
