@@ -7,6 +7,29 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.2.3 (20 avril 2026)
+
+=== Corrigé
+
+* `prepare_rescue` : sur les serveurs OVH qui exposent plusieurs profils
+  `bootType == "rescue"` (cas typique : un `ipxe-shell` + un
+  `rescue12-customer`), on prenait le premier retourné par l'API — souvent
+  l'iPXE shell, inexploitable comme OS (simple shell iPXE interactif, ni
+  SSH ni apt). Résultat : après reboot le serveur n'est jamais joignable,
+  le monitoring OVH escalade vers une intervention.
++
+Correction : `find_rescue_boot_id` filtre désormais sur les kernels
+`rescue*` (Debian rescue : `rescue12-customer`, `rescue64-pro`…) et écarte
+les profils `ipxe-shell`. Nouveau prédicat `Boot#linux_rescue?` pour
+exposer la règle côté API publique.
+
+=== Ajouté
+
+* `Boot#linux_rescue?` : distingue un rescue Debian utilisable d'un
+  `ipxe-shell` (les deux portent `boot_type == "rescue"` côté OVH).
+* Spec couvrant le cas loulou (bootIds 203323 ipxe-shell + 230242
+  rescue12-customer) : vérifie qu'on prend bien le 230242.
+
 == 0.2.2 (20 avril 2026)
 
 === Corrigé

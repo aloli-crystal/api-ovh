@@ -202,6 +202,20 @@ describe OvhApi::Endpoints::DedicatedServers do
       )
       boot.uefi_compatible?.should be_false
     end
+
+    it "linux_rescue? vrai pour un kernel rescue*" do
+      OvhApi::Endpoints::Boot.new(id: 1, boot_type: "rescue", kernel: "rescue12-customer")
+        .linux_rescue?.should be_true
+      OvhApi::Endpoints::Boot.new(id: 1, boot_type: "rescue", kernel: "rescue64-pro")
+        .linux_rescue?.should be_true
+    end
+
+    it "linux_rescue? faux pour ipxe-shell et autres" do
+      OvhApi::Endpoints::Boot.new(id: 1, boot_type: "rescue", kernel: "ipxe-shell")
+        .linux_rescue?.should be_false
+      OvhApi::Endpoints::Boot.new(id: 1, boot_type: "rescue", kernel: nil)
+        .linux_rescue?.should be_false
+    end
   end
 
   describe "#set_boot" do
@@ -357,6 +371,49 @@ describe OvhApi::Endpoints::DedicatedServers do
       put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
       put.body.should contain(%("bootId":42))
       put.body.should contain(%("rescueSshKey":"ssh-ed25519 AAAA... me@host"))
+    end
+
+    it "écarte le rescue ipxe-shell au profit du rescue Linux" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+
+      # Cas réel OVH : deux boots rescue, un ipxe-shell (non exploitable)
+      # et un rescue12-customer (Debian). On doit prendre le second.
+      transport.stub("GET", /\/boot$/, status: 200, body: "[203323,230242]")
+      transport.stub(
+        "GET",
+        /\/boot\/203323$/,
+        status: 200,
+        body: %({"bootId":203323,"bootType":"rescue","kernel":"ipxe-shell","description":"iPXE shell"}),
+      )
+      transport.stub(
+        "GET",
+        /\/boot\/230242$/,
+        status: 200,
+        body: %({"bootId":230242,"bootType":"rescue","kernel":"rescue12-customer","description":"Customer rescue (Debian-12)"}),
+      )
+      transport.stub(
+        "GET",
+        /\/me\/sshKey\/laptop$/,
+        status: 200,
+        body: %({"keyName":"laptop","key":"ssh-ed25519 AAAA...","default":false}),
+      )
+      transport.stub("PUT", /dedicated\/server\/ns1\.ip-1-2-3\.eu$/, status: 200, body: "")
+      transport.stub(
+        "POST",
+        /reboot/,
+        status: 200,
+        body: %({"taskId":1,"function":"hardReboot","status":"init"}),
+      )
+
+      client.dedicated_servers.prepare_rescue(
+        service_name: "ns1.ip-1-2-3.eu",
+        ssh_key_name: "laptop",
+      )
+
+      put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      put.body.should contain(%("bootId":230242))
+      put.body.should_not contain("203323")
     end
 
     it "lève si aucun boot rescue compatible UEFI n'existe" do

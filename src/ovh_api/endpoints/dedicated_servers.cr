@@ -227,10 +227,16 @@ module OvhApi
 
       # Cherche un `bootId` de type rescue compatible UEFI sur le serveur.
       # Lève une `OvhApi::Error` si aucun candidat n'est trouvé.
+      #
+      # OVH expose plusieurs profils `boot_type == "rescue"` sur un même
+      # serveur : typiquement un `ipxe-shell` (simple shell iPXE, non
+      # exploitable comme Linux rescue) et un `rescueXX-customer`
+      # (environnement Debian complet, avec apt/ssh). On privilégie
+      # explicitement les kernels `rescue*` et on écarte `ipxe-shell`.
       private def find_rescue_boot_id(service_name : String) : Int64
         candidates = boots(service_name).compact_map do |id|
           detail = boot(service_name, id)
-          if detail.boot_type == "rescue" && detail.uefi_compatible?
+          if detail.boot_type == "rescue" && detail.uefi_compatible? && detail.linux_rescue?
             detail
           else
             nil
@@ -239,8 +245,8 @@ module OvhApi
 
         if candidates.empty?
           raise Error.new(
-            "Aucun bootId de type 'rescue' compatible UEFI trouvé pour " \
-            "#{service_name}. Vérifier /dedicated/server/#{service_name}/boot."
+            "Aucun bootId de type 'rescue' Linux (kernel rescue*) compatible UEFI " \
+            "trouvé pour #{service_name}. Vérifier /dedicated/server/#{service_name}/boot."
           )
         end
         candidates.first.id
@@ -298,6 +304,23 @@ module OvhApi
         else
           false
         end
+      end
+
+      # Le rescue expose-t-il un vrai Linux (apt/ssh utilisables) ?
+      #
+      # OVH publie sous `boot_type == "rescue"` plusieurs profils dont
+      # seuls certains bootent un Linux complet. Les kernels observés :
+      #
+      # * `rescue12-customer`, `rescue64-pro`, `rescue64-*` → Debian rescue,
+      #   utilisable comme OS de travail (apt, ssh, qemu…).
+      # * `ipxe-shell` → simple shell iPXE interactif, *pas* un OS : le
+      #   serveur boote mais ne démarre aucun service réseau, SSH jamais
+      #   disponible.
+      #
+      # Heuristique : le kernel doit commencer par `rescue`.
+      def linux_rescue? : Bool
+        k = @kernel
+        !k.nil? && k.starts_with?("rescue")
       end
     end
 
