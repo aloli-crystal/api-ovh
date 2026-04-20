@@ -7,6 +7,27 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.2.2 (20 avril 2026)
+
+=== Corrigé
+
+* `prepare_rescue` : le champ OVH `rescueSshKey` attend la **clé publique
+  brute** (`ssh-ed25519 AAAA... user@host`), pas le nom de la clé. La
+  doc OVH indique pourtant « name of the ssh key », ce qui est trompeur
+  — l'API renvoie `400 {"message":"SSH key is not valid"}` quand on
+  passe le nom. Vérifié en consultant `GET /dedicated/server/{serviceName}` :
+  le champ `rescueSshKey` du serveur y est stocké en contenu brut.
++
+`prepare_rescue` fait désormais un `GET /me/sshKey/{name}` pour
+récupérer le contenu avant de le passer à `set_boot`. L'API
+publique est inchangée (on passe toujours le nom en argument) :
+compatibilité ascendante côté appelants.
+
+=== Ajouté
+
+* Spec étoffé : couvre le lookup intermédiaire `ssh_keys.get` + assertion
+  que le `PUT` envoie la clé brute, pas le nom.
+
 == 0.2.1 (20 avril 2026)
 
 === Corrigé

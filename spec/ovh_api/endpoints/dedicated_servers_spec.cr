@@ -307,6 +307,15 @@ describe OvhApi::Endpoints::DedicatedServers do
         status: 200,
         body: %({"bootId":42,"bootType":"rescue","kernel":"rescue64-pro","supportsUEFI":"yes"}),
       )
+      # Lookup du contenu de la clé (depuis 0.2.2, OVH attend la clé brute
+      # pas son nom pour rescueSshKey — la doc dit « name » mais l'API
+      # rejette avec 400 « SSH key is not valid »).
+      transport.stub(
+        "GET",
+        /\/me\/sshKey\/laptop$/,
+        status: 200,
+        body: %({"keyName":"laptop","key":"ssh-ed25519 AAAA... me@host","default":false}),
+      )
       transport.stub(
         "PUT",
         /dedicated\/server\/ns1\.ip-1-2-3\.eu$/,
@@ -328,9 +337,9 @@ describe OvhApi::Endpoints::DedicatedServers do
       task.id.should eq(500_i64)
       task.function.should eq("hardReboot")
 
-      # Séquence attendue : pas de netbootOption (endpoint qui n'existe
-      # pas côté OVH, corrigé en 0.2.1 — bootId et rescueSshKey sont
-      # désormais dans la même requête PUT).
+      # Séquence attendue depuis 0.2.2 : lookup de la clé pour récupérer
+      # son contenu, puis PUT combiné (bootId + rescueSshKey = contenu
+      # brut), puis reboot.
       sequence = transport.requests
         .reject { |r| r.url.includes?("/auth/time") }
         .map { |r| "#{r.method} #{r.url.sub(/^.*\/1\.0/, "")}" }
@@ -339,14 +348,15 @@ describe OvhApi::Endpoints::DedicatedServers do
         "GET /dedicated/server/ns1.ip-1-2-3.eu/boot",
         "GET /dedicated/server/ns1.ip-1-2-3.eu/boot/1",
         "GET /dedicated/server/ns1.ip-1-2-3.eu/boot/42",
+        "GET /me/sshKey/laptop",
         "PUT /dedicated/server/ns1.ip-1-2-3.eu",
         "POST /dedicated/server/ns1.ip-1-2-3.eu/reboot",
       ])
 
-      # Le PUT combine bootId=42 et rescueSshKey=laptop.
+      # Le PUT combine bootId=42 et rescueSshKey = **contenu** de la clé.
       put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
       put.body.should contain(%("bootId":42))
-      put.body.should contain(%("rescueSshKey":"laptop"))
+      put.body.should contain(%("rescueSshKey":"ssh-ed25519 AAAA... me@host"))
     end
 
     it "lève si aucun boot rescue compatible UEFI n'existe" do

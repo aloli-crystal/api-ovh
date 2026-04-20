@@ -2,7 +2,7 @@ require "./spec_helper"
 
 describe OvhApi do
   it "expose une version" do
-    OvhApi::VERSION.should eq("0.2.1")
+    OvhApi::VERSION.should eq("0.2.2")
   end
 
   it "liste les endpoints connus" do

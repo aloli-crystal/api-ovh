@@ -204,7 +204,12 @@ module OvhApi
       #   Critère : `bootType == "rescue"` et `supportsUEFI` vaut `"yes"`,
       #   `"both"`, `"only"` ou est absent. S'il y a plusieurs candidats,
       #   on retient le premier (les gammes récentes n'en exposent qu'un).
-      # . `set_boot(service_name, rescue_id, rescue_ssh_key: ssh_key_name)`
+      # . `ssh_keys.get(ssh_key_name)` pour résoudre le **contenu** de la
+      #   clé publique. La doc OVH parle d'un « nom » pour `rescueSshKey`
+      #   mais l'API attend en réalité la *clé brute* (observé en v0.2.1
+      #   sur un Kimsufi KS-B : `{"message":"SSH key is not valid"}` en
+      #   retour quand on passait le nom).
+      # . `set_boot(service_name, rescue_id, rescue_ssh_key: <contenu>)`
       #   pour armer le netboot rescue et déclarer la clé à injecter en
       #   une seule requête `PUT /dedicated/server/{serviceName}`.
       # . `reboot(service_name)` pour appliquer.
@@ -215,7 +220,8 @@ module OvhApi
       # Retourne la `Task` du reboot ; à poller avec `#task`.
       def prepare_rescue(service_name : String, ssh_key_name : String) : Task
         rescue_id = find_rescue_boot_id(service_name)
-        set_boot(service_name, rescue_id, rescue_ssh_key: ssh_key_name)
+        ssh_key_content = @client.ssh_keys.get(ssh_key_name).key
+        set_boot(service_name, rescue_id, rescue_ssh_key: ssh_key_content)
         reboot(service_name)
       end
 
