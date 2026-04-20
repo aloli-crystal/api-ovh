@@ -116,16 +116,15 @@ L'exemple complet est dans link:examples/provision_debian.cr[`examples/provision
 
 == Orchestration rescue OVH
 
-Depuis la v0.2, ovh-api expose les endpoints de netboot / reboot et un
-helper de haut niveau `prepare_rescue` qui enchaîne les quatre appels
-nécessaires pour basculer un serveur en mode rescue avec une clé SSH
-posée :
+Depuis la v0.2.1, ovh-api expose les endpoints de netboot / reboot et un
+helper de haut niveau `prepare_rescue` qui enchaîne trois étapes pour
+basculer un serveur en mode rescue avec une clé SSH posée :
 
 . Recherche du `bootId` `rescue` UEFI-compatible via
   `GET /dedicated/server/\*/boot` puis `GET .../boot/\{id\}`.
-. `PUT /dedicated/server/\*` avec `{"bootId": <rescueId>}`.
-. `POST /dedicated/server/\*/netbootOption` avec
-  `{"option":"rescueSshKey","value":"<ssh-key-name>"}`.
+. `PUT /dedicated/server/\*` avec `{"bootId": <rescueId>, "rescueSshKey": "<ssh-key-name>"}`
+  (un seul appel — `rescueSshKey` est un champ du serveur, pas une
+  option séparée).
 . `POST /dedicated/server/\*/reboot` → `Task`.
 
 [source,crystal]
@@ -150,9 +149,9 @@ end
 ----
 
 Les appels bas niveau restent accessibles individuellement
-(`boots`, `boot`, `set_boot`, `set_netboot_option`, `reboot`) si vous
-avez besoin d'un orchestrateur différent (ex. basculer en
-`ipxeCustomerScript`).
+(`boots`, `boot`, `set_boot` avec options `rescue_ssh_key` et
+`rescue_mail`, `reboot`) si vous avez besoin d'un orchestrateur
+différent (ex. basculer en `ipxeCustomerScript`).
 
 == Obtenir des credentials OVH
 
@@ -176,7 +175,6 @@ POST /ip/*/reverse
 GET  /dedicated/server/*/boot
 GET  /dedicated/server/*/boot/*
 PUT  /dedicated/server/*
-POST /dedicated/server/*/netbootOption
 POST /dedicated/server/*/reboot
 ----
 . Valider l'URL retournée (SMS ou mot de passe manager OVH) : le consumer key

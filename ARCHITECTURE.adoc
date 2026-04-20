@@ -182,16 +182,17 @@ mais un *bootId* à sélectionner parmi la liste exposée par le serveur.
   `power`), `kernel` (`rescue64-pro`, …), `supportsUEFI`.
 . Retenir le premier `bootType == "rescue"` dont `supportsUEFI` est
   absent ou vaut `yes` / `both` / `only`.
-. `set_boot(service_name, rescue_id)` → arme le netboot.
-. `set_netboot_option(service_name, "rescueSshKey", ssh_key_name)` →
-  OVH injecte la clé dans `/root/.ssh/authorized_keys` du rescue.
+. `set_boot(service_name, rescue_id, rescue_ssh_key: ssh_key_name)` →
+  un seul `PUT /dedicated/server/{serviceName}` qui arme le netboot *et*
+  déclare la clé à injecter. OVH injectera cette clé dans
+  `/root/.ssh/authorized_keys` du rescue au démarrage.
 . `reboot(service_name)` → `Task` (`function=hardReboot`).
 
 Les `bootId` *varient selon la gamme et le serveur* : un Advance-1 et
 un Scale-3 n'exposent pas les mêmes identifiants. Les coder en dur
 casserait à chaque nouvelle gamme OVH. Le helper
-`prepare_rescue(service_name, ssh_key_name)` encapsule les cinq
-étapes ; l'appelant n'a plus qu'à poller la `Task` retournée.
+`prepare_rescue(service_name, ssh_key_name)` encapsule les étapes ;
+l'appelant n'a plus qu'à poller la `Task` retournée.
 
 Le champ `supportsUEFI` peut être absent sur les profils bas niveau
 (`power`, anciens `network`). `Boot#uefi_compatible?` considère alors
@@ -203,9 +204,13 @@ ne pilotent que l'alim.
 
 === v0.2 (livré 20 avril 2026)
 
-* Endpoints boot/netboot/reboot couverts : `boots`, `boot`, `set_boot`,
-  `set_netboot_option`, `reboot`.
-* Helper `prepare_rescue(service_name, ssh_key_name)`.
+* Endpoints boot/reboot couverts : `boots`, `boot`, `set_boot` (avec
+  paramètres optionnels `rescue_ssh_key` et `rescue_mail` en v0.2.1),
+  `reboot`.
+* Helper `prepare_rescue(service_name, ssh_key_name)` — une seule
+  requête PUT combinant `bootId` et `rescueSshKey` (correction v0.2.1 :
+  l'endpoint `/netbootOption` supposé dans la v0.2 initiale n'existe
+  pas côté OVH).
 
 === v0.3 (envisagé)
 

@@ -7,6 +7,31 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.2.1 (20 avril 2026)
+
+=== Corrigé
+
+* `prepare_rescue` : l'appel `POST /dedicated/server/{serviceName}/netbootOption`
+  n'existe pas côté OVH (renvoie HTTP 404 « Got an invalid (or empty)
+  URL »). La bonne approche est de passer `rescueSshKey` dans le corps
+  JSON du `PUT /dedicated/server/{serviceName}`, dans la même requête
+  que `bootId`. Corrigé : `set_boot` accepte maintenant un paramètre
+  optionnel `rescue_ssh_key`, `prepare_rescue` fait une seule requête
+  PUT au lieu de deux (PUT + POST raté).
+
+=== Retiré
+
+* `client.dedicated_servers.set_netboot_option(...)` : méthode retirée
+  (l'endpoint n'existait pas). La fonctionnalité est intégrée dans
+  `set_boot(service_name, boot_id, rescue_ssh_key: ...)`.
+
+=== Modifié
+
+* `set_boot` : nouveaux paramètres optionnels `rescue_ssh_key : String?`
+  et `rescue_mail : String?`, ajoutés au corps du PUT quand non-nil.
+  Rétrocompatible : `set_boot(service_name, boot_id)` continue de
+  fonctionner à l'identique.
+
 == 0.2.0 (20 avril 2026)
 
 === Ajouté
@@ -14,9 +39,9 @@ et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 * `client.dedicated_servers.boots(service_name)` : liste des bootId dispo.
 * `client.dedicated_servers.boot(service_name, boot_id)` : détail d'un boot, struct `OvhApi::Boot`.
 * `client.dedicated_servers.set_boot(service_name, boot_id)` : change le netboot courant.
-* `client.dedicated_servers.set_netboot_option(service_name, option, value)` : configure les options du netboot (ex. `rescueSshKey` pour injecter une clé SSH dans le rescue).
+* `client.dedicated_servers.set_netboot_option(service_name, option, value)` : *ne fonctionnait pas (endpoint inexistant), retiré en 0.2.1*.
 * `client.dedicated_servers.reboot(service_name)` : déclenche un reboot, retourne une `Task`.
-* Helper d'orchestration `prepare_rescue(service_name, ssh_key_name)` qui enchaîne les 4 appels (lookup rescue bootId, set_boot, set_netboot_option rescueSshKey, reboot) et retourne la `Task`.
+* Helper d'orchestration `prepare_rescue(service_name, ssh_key_name)` qui enchaîne les appels.
 
 == [Non publié]
 

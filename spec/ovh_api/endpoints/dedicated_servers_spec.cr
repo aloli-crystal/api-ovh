@@ -221,29 +221,42 @@ describe OvhApi::Endpoints::DedicatedServers do
       req.url.should end_with("/dedicated/server/ns1.ip-1-2-3.eu")
       req.body.should contain(%("bootId":42))
     end
-  end
 
-  describe "#set_netboot_option" do
-    it "POST /netbootOption avec option et value" do
+    it "PUT avec rescue_ssh_key inclut rescueSshKey dans le corps" do
       transport = FakeTransport.new
       client = build_client(transport)
       transport.stub(
-        "POST",
-        /netbootOption/,
+        "PUT",
+        /dedicated\/server\/ns1\.ip-1-2-3\.eu$/,
         status: 200,
         body: "",
       )
 
-      client.dedicated_servers.set_netboot_option(
-        service_name: "ns1.ip-1-2-3.eu",
-        option: "rescueSshKey",
-        value: "laptop",
+      client.dedicated_servers.set_boot(
+        "ns1.ip-1-2-3.eu",
+        42_i64,
+        rescue_ssh_key: "laptop",
       )
 
-      req = transport.requests.find { |r| r.method == "POST" }.not_nil!
-      req.url.should end_with("/dedicated/server/ns1.ip-1-2-3.eu/netbootOption")
-      req.body.should contain(%("option":"rescueSshKey"))
-      req.body.should contain(%("value":"laptop"))
+      req = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      req.body.should contain(%("bootId":42))
+      req.body.should contain(%("rescueSshKey":"laptop"))
+    end
+
+    it "n'émet pas rescueSshKey quand nil" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "PUT",
+        /dedicated\/server\/ns1\.ip-1-2-3\.eu$/,
+        status: 200,
+        body: "",
+      )
+
+      client.dedicated_servers.set_boot("ns1.ip-1-2-3.eu", 42_i64)
+
+      req = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      req.body.should_not contain("rescueSshKey")
     end
   end
 
@@ -271,7 +284,7 @@ describe OvhApi::Endpoints::DedicatedServers do
   end
 
   describe "#prepare_rescue" do
-    it "orchestre boots → boot → set_boot → set_netboot_option → reboot" do
+    it "orchestre boots → boot → set_boot (avec rescueSshKey) → reboot" do
       transport = FakeTransport.new
       client = build_client(transport)
 
@@ -302,12 +315,6 @@ describe OvhApi::Endpoints::DedicatedServers do
       )
       transport.stub(
         "POST",
-        /netbootOption/,
-        status: 200,
-        body: "",
-      )
-      transport.stub(
-        "POST",
         /reboot/,
         status: 200,
         body: %({"taskId":500,"function":"hardReboot","status":"init"}),
@@ -321,7 +328,9 @@ describe OvhApi::Endpoints::DedicatedServers do
       task.id.should eq(500_i64)
       task.function.should eq("hardReboot")
 
-      # Ordonne les appels hors /auth/time : ce qu'on attend exactement.
+      # Séquence attendue : pas de netbootOption (endpoint qui n'existe
+      # pas côté OVH, corrigé en 0.2.1 — bootId et rescueSshKey sont
+      # désormais dans la même requête PUT).
       sequence = transport.requests
         .reject { |r| r.url.includes?("/auth/time") }
         .map { |r| "#{r.method} #{r.url.sub(/^.*\/1\.0/, "")}" }
@@ -331,18 +340,13 @@ describe OvhApi::Endpoints::DedicatedServers do
         "GET /dedicated/server/ns1.ip-1-2-3.eu/boot/1",
         "GET /dedicated/server/ns1.ip-1-2-3.eu/boot/42",
         "PUT /dedicated/server/ns1.ip-1-2-3.eu",
-        "POST /dedicated/server/ns1.ip-1-2-3.eu/netbootOption",
         "POST /dedicated/server/ns1.ip-1-2-3.eu/reboot",
       ])
 
-      # Le bootId passé à set_boot doit être 42, pas 1.
+      # Le PUT combine bootId=42 et rescueSshKey=laptop.
       put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
       put.body.should contain(%("bootId":42))
-
-      # Le body de netbootOption inclut rescueSshKey + laptop.
-      netboot = transport.requests.find { |r| r.url.ends_with?("/netbootOption") }.not_nil!
-      netboot.body.should contain(%("option":"rescueSshKey"))
-      netboot.body.should contain(%("value":"laptop"))
+      put.body.should contain(%("rescueSshKey":"laptop"))
     end
 
     it "lève si aucun boot rescue compatible UEFI n'existe" do

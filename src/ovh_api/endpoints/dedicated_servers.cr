@@ -150,14 +150,27 @@ module OvhApi
         Boot.from_any(result.not_nil!)
       end
 
-      # Change le netboot courant du serveur (son `bootId`).
+      # Change le netboot courant du serveur et configure optionnellement
+      # les options rescue (clé SSH, email de notification).
       #
-      # `PUT /dedicated/server/{serviceName}` avec `{"bootId": <id>}`.
+      # `PUT /dedicated/server/{serviceName}` avec body JSON contenant
+      # `bootId` et, si fournis, `rescueSshKey` et/ou `rescueMail`.
       # OVH répond avec un corps vide en cas de succès.
-      def set_boot(service_name : String, boot_id : Int64) : Nil
+      #
+      # `rescue_ssh_key` est le *nom* d'une clé SSH déclarée dans
+      # `/me/sshKey` (voir `client.ssh_keys.list`). Elle sera injectée
+      # dans `/root/.ssh/authorized_keys` au démarrage du rescue.
+      def set_boot(
+        service_name : String,
+        boot_id : Int64,
+        rescue_ssh_key : String? = nil,
+        rescue_mail : String? = nil,
+      ) : Nil
         body = JSON.build do |json|
           json.object do
             json.field "bootId", boot_id
+            json.field "rescueSshKey", rescue_ssh_key if rescue_ssh_key
+            json.field "rescueMail", rescue_mail if rescue_mail
           end
         end
 
@@ -169,35 +182,12 @@ module OvhApi
         nil
       end
 
-      # Configure une option du netboot (ex. la clé SSH à injecter en
-      # rescue).
-      #
-      # `POST /dedicated/server/{serviceName}/netbootOption` avec
-      # `{"option": "<option>", "value": "<value>"}`. L'option la plus
-      # utile côté provisioning est `"rescueSshKey"`, dont la `value`
-      # est le *nom* d'une clé SSH déclarée dans `/me/sshKey`.
-      def set_netboot_option(service_name : String, option : String, value : String) : Nil
-        body = JSON.build do |json|
-          json.object do
-            json.field "option", option
-            json.field "value", value
-          end
-        end
-
-        @client.call(
-          "POST",
-          "/dedicated/server/#{service_name}/netbootOption",
-          body: body,
-        )
-        nil
-      end
-
       # Déclenche un redémarrage matériel du serveur.
       #
       # `POST /dedicated/server/{serviceName}/reboot` → retourne une
       # `Task` (function `"hardReboot"` côté OVH). Le reboot applique le
-      # netboot en vigueur, donc configurer `set_boot` + éventuellement
-      # `set_netboot_option` *avant* d'appeler cette méthode.
+      # netboot courant ; configurer `set_boot` (avec `rescue_ssh_key`
+      # si nécessaire) *avant* d'appeler cette méthode.
       def reboot(service_name : String) : Task
         result = @client.call(
           "POST",
@@ -214,10 +204,9 @@ module OvhApi
       #   Critère : `bootType == "rescue"` et `supportsUEFI` vaut `"yes"`,
       #   `"both"`, `"only"` ou est absent. S'il y a plusieurs candidats,
       #   on retient le premier (les gammes récentes n'en exposent qu'un).
-      # . `set_boot(service_name, rescue_id)` pour armer le netboot.
-      # . `set_netboot_option(service_name, "rescueSshKey", ssh_key_name)`
-      #   pour que la clé soit injectée dans `/root/.ssh/authorized_keys`
-      #   au démarrage du rescue.
+      # . `set_boot(service_name, rescue_id, rescue_ssh_key: ssh_key_name)`
+      #   pour armer le netboot rescue et déclarer la clé à injecter en
+      #   une seule requête `PUT /dedicated/server/{serviceName}`.
       # . `reboot(service_name)` pour appliquer.
       #
       # `ssh_key_name` doit déjà exister dans `/me/sshKey` (à créer via
@@ -226,8 +215,7 @@ module OvhApi
       # Retourne la `Task` du reboot ; à poller avec `#task`.
       def prepare_rescue(service_name : String, ssh_key_name : String) : Task
         rescue_id = find_rescue_boot_id(service_name)
-        set_boot(service_name, rescue_id)
-        set_netboot_option(service_name, "rescueSshKey", ssh_key_name)
+        set_boot(service_name, rescue_id, rescue_ssh_key: ssh_key_name)
         reboot(service_name)
       end
 

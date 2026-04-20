@@ -117,15 +117,15 @@ Full runnable example in link:examples/provision_debian.cr[`examples/provision_d
 
 == OVH rescue orchestration
 
-Since v0.2, ovh-api exposes the netboot / reboot endpoints plus a
-high-level helper `prepare_rescue` that chains the four calls required
-to swap a dedicated server into rescue mode with an SSH key injected:
+Since v0.2.1, ovh-api exposes the netboot / reboot endpoints plus a
+high-level helper `prepare_rescue` that chains three steps to swap a
+dedicated server into rescue mode with an SSH key injected:
 
 . Find the UEFI-compatible rescue `bootId` via
   `GET /dedicated/server/\*/boot` then `GET .../boot/\{id\}`.
-. `PUT /dedicated/server/\*` with `{"bootId": <rescueId>}`.
-. `POST /dedicated/server/\*/netbootOption` with
-  `{"option":"rescueSshKey","value":"<ssh-key-name>"}`.
+. `PUT /dedicated/server/\*` with `{"bootId": <rescueId>, "rescueSshKey": "<ssh-key-name>"}`
+  (one call — `rescueSshKey` is a field on the server object, not a
+  separate option).
 . `POST /dedicated/server/\*/reboot` → `Task`.
 
 [source,crystal]
@@ -150,7 +150,7 @@ end
 ----
 
 The underlying calls are exposed individually as well (`boots`, `boot`,
-`set_boot`, `set_netboot_option`, `reboot`) if you need a different
+`set_boot` (avec `rescue_ssh_key` optionnel), `reboot`) if you need a different
 orchestrator (e.g. switching to `ipxeCustomerScript`).
 
 == Getting OVH credentials
@@ -175,7 +175,7 @@ POST /ip/*/reverse
 GET  /dedicated/server/*/boot
 GET  /dedicated/server/*/boot/*
 PUT  /dedicated/server/*
-POST /dedicated/server/*/netbootOption
+
 POST /dedicated/server/*/reboot
 ----
 . Validate the URL returned by OVH (SMS or OVH password manager). The consumer
