@@ -205,6 +205,52 @@ module OvhApi
         )
         Task.from_any(result.not_nil!)
       end
+
+      # Orchestration complète « bascule en rescue + clé SSH + reboot ».
+      #
+      # Enchaîne :
+      #
+      # . `boots` puis `boot(id)` pour trouver le `bootId` rescue adapté.
+      #   Critère : `bootType == "rescue"` et `supportsUEFI` vaut `"yes"`,
+      #   `"both"`, `"only"` ou est absent. S'il y a plusieurs candidats,
+      #   on retient le premier (les gammes récentes n'en exposent qu'un).
+      # . `set_boot(service_name, rescue_id)` pour armer le netboot.
+      # . `set_netboot_option(service_name, "rescueSshKey", ssh_key_name)`
+      #   pour que la clé soit injectée dans `/root/.ssh/authorized_keys`
+      #   au démarrage du rescue.
+      # . `reboot(service_name)` pour appliquer.
+      #
+      # `ssh_key_name` doit déjà exister dans `/me/sshKey` (à créer via
+      # `client.ssh_keys.create` si besoin).
+      #
+      # Retourne la `Task` du reboot ; à poller avec `#task`.
+      def prepare_rescue(service_name : String, ssh_key_name : String) : Task
+        rescue_id = find_rescue_boot_id(service_name)
+        set_boot(service_name, rescue_id)
+        set_netboot_option(service_name, "rescueSshKey", ssh_key_name)
+        reboot(service_name)
+      end
+
+      # Cherche un `bootId` de type rescue compatible UEFI sur le serveur.
+      # Lève une `OvhApi::Error` si aucun candidat n'est trouvé.
+      private def find_rescue_boot_id(service_name : String) : Int64
+        candidates = boots(service_name).compact_map do |id|
+          detail = boot(service_name, id)
+          if detail.boot_type == "rescue" && detail.uefi_compatible?
+            detail
+          else
+            nil
+          end
+        end
+
+        if candidates.empty?
+          raise Error.new(
+            "Aucun bootId de type 'rescue' compatible UEFI trouvé pour " \
+            "#{service_name}. Vérifier /dedicated/server/#{service_name}/boot."
+          )
+        end
+        candidates.first.id
+      end
     end
 
     # Profil de netboot exposé par OVH pour un serveur donné.

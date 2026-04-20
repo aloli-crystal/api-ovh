@@ -270,6 +270,108 @@ describe OvhApi::Endpoints::DedicatedServers do
     end
   end
 
+  describe "#prepare_rescue" do
+    it "orchestre boots → boot → set_boot → set_netboot_option → reboot" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+
+      # Liste de bootId : 1 = harddisk, 42 = rescue.
+      transport.stub(
+        "GET",
+        /\/boot$/,
+        status: 200,
+        body: "[1,42]",
+      )
+      transport.stub(
+        "GET",
+        /\/boot\/1$/,
+        status: 200,
+        body: %({"bootId":1,"bootType":"harddisk","supportsUEFI":"yes"}),
+      )
+      transport.stub(
+        "GET",
+        /\/boot\/42$/,
+        status: 200,
+        body: %({"bootId":42,"bootType":"rescue","kernel":"rescue64-pro","supportsUEFI":"yes"}),
+      )
+      transport.stub(
+        "PUT",
+        /dedicated\/server\/ns1\.ip-1-2-3\.eu$/,
+        status: 200,
+        body: "",
+      )
+      transport.stub(
+        "POST",
+        /netbootOption/,
+        status: 200,
+        body: "",
+      )
+      transport.stub(
+        "POST",
+        /reboot/,
+        status: 200,
+        body: %({"taskId":500,"function":"hardReboot","status":"init"}),
+      )
+
+      task = client.dedicated_servers.prepare_rescue(
+        service_name: "ns1.ip-1-2-3.eu",
+        ssh_key_name: "laptop",
+      )
+
+      task.id.should eq(500_i64)
+      task.function.should eq("hardReboot")
+
+      # Ordonne les appels hors /auth/time : ce qu'on attend exactement.
+      sequence = transport.requests
+        .reject { |r| r.url.includes?("/auth/time") }
+        .map { |r| "#{r.method} #{r.url.sub(/^.*\/1\.0/, "")}" }
+
+      sequence.should eq([
+        "GET /dedicated/server/ns1.ip-1-2-3.eu/boot",
+        "GET /dedicated/server/ns1.ip-1-2-3.eu/boot/1",
+        "GET /dedicated/server/ns1.ip-1-2-3.eu/boot/42",
+        "PUT /dedicated/server/ns1.ip-1-2-3.eu",
+        "POST /dedicated/server/ns1.ip-1-2-3.eu/netbootOption",
+        "POST /dedicated/server/ns1.ip-1-2-3.eu/reboot",
+      ])
+
+      # Le bootId passé à set_boot doit être 42, pas 1.
+      put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      put.body.should contain(%("bootId":42))
+
+      # Le body de netbootOption inclut rescueSshKey + laptop.
+      netboot = transport.requests.find { |r| r.url.ends_with?("/netbootOption") }.not_nil!
+      netboot.body.should contain(%("option":"rescueSshKey"))
+      netboot.body.should contain(%("value":"laptop"))
+    end
+
+    it "lève si aucun boot rescue compatible UEFI n'existe" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+
+      transport.stub("GET", /\/boot$/, status: 200, body: "[1,2]")
+      transport.stub(
+        "GET",
+        /\/boot\/1$/,
+        status: 200,
+        body: %({"bootId":1,"bootType":"harddisk","supportsUEFI":"yes"}),
+      )
+      transport.stub(
+        "GET",
+        /\/boot\/2$/,
+        status: 200,
+        body: %({"bootId":2,"bootType":"rescue","supportsUEFI":"no"}),
+      )
+
+      expect_raises(OvhApi::Error, /Aucun bootId de type 'rescue'/) do
+        client.dedicated_servers.prepare_rescue(
+          service_name: "ns1.ip-1-2-3.eu",
+          ssh_key_name: "laptop",
+        )
+      end
+    end
+  end
+
   describe "Task#done?" do
     it "true pour done, cancelled, ovhError, customerError" do
       base = {"taskId" => 1_i64, "function" => "x"}
