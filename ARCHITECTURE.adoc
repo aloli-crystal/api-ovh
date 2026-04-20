@@ -170,9 +170,44 @@ serveur rejeté par `reinstall`.
 
 Un cycle install + reverse dure typiquement 20 à 60 minutes côté OVH.
 
+== Flux rescue mode (v0.2)
+
+La bascule en rescue pour du diagnostic ou de la réparation suit une
+logique différente de la réinstallation : pas de template à choisir,
+mais un *bootId* à sélectionner parmi la liste exposée par le serveur.
+
+. `client.dedicated_servers.boots(service_name)` → `[1, 2, 42, …]`.
+. Pour chaque `bootId`, `client.dedicated_servers.boot(service_name, id)` →
+  `bootType` (`harddisk`, `rescue`, `ipxeCustomerScript`, `network`,
+  `power`), `kernel` (`rescue64-pro`, …), `supportsUEFI`.
+. Retenir le premier `bootType == "rescue"` dont `supportsUEFI` est
+  absent ou vaut `yes` / `both` / `only`.
+. `set_boot(service_name, rescue_id)` → arme le netboot.
+. `set_netboot_option(service_name, "rescueSshKey", ssh_key_name)` →
+  OVH injecte la clé dans `/root/.ssh/authorized_keys` du rescue.
+. `reboot(service_name)` → `Task` (`function=hardReboot`).
+
+Les `bootId` *varient selon la gamme et le serveur* : un Advance-1 et
+un Scale-3 n'exposent pas les mêmes identifiants. Les coder en dur
+casserait à chaque nouvelle gamme OVH. Le helper
+`prepare_rescue(service_name, ssh_key_name)` encapsule les cinq
+étapes ; l'appelant n'a plus qu'à poller la `Task` retournée.
+
+Le champ `supportsUEFI` peut être absent sur les profils bas niveau
+(`power`, anciens `network`). `Boot#uefi_compatible?` considère alors
+que la question ne se pose pas et renvoie `true` — sinon on
+exclurait à tort les serveurs antérieurs à UEFI et les profils qui
+ne pilotent que l'alim.
+
 == Feuille de route
 
-=== v0.2 (envisagé)
+=== v0.2 (livré 20 avril 2026)
+
+* Endpoints boot/netboot/reboot couverts : `boots`, `boot`, `set_boot`,
+  `set_netboot_option`, `reboot`.
+* Helper `prepare_rescue(service_name, ssh_key_name)`.
+
+=== v0.3 (envisagé)
 
 * `/order/cart` : commander un nouveau serveur depuis zéro.
 * Fallback `install/start` pour les serveurs legacy.

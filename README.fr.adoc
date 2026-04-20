@@ -45,8 +45,8 @@ injection de transport.
 | Clés SSH (`/me/sshKey`) : list, get, create, delete.
 | Gestion complète du compte (`/me/*`).
 
-| Serveurs dédiés : list, info, reinstall, tasks.
-| Commandes (`/order/cart`) — prévu v0.2.
+| Serveurs dédiés : list, info, reinstall, tasks, boot/netboot/reboot, `prepare_rescue`.
+| Commandes (`/order/cart`) — prévu v0.3.
 
 | DNS inverse (`/ip/{ip}/reverse`) : list, get, set, delete.
 | VPS, cloud public, CDN, web hosting.
@@ -64,7 +64,7 @@ Dans votre `shard.yml` :
 dependencies:
   ovh-api:
     github: aloli-crystal/crystal-ovh-api
-    version: ~> 0.1
+    version: ~> 0.2
 ----
 
 Puis `shards install`.
@@ -114,6 +114,46 @@ client.ips.set_reverse(ip: "192.0.2.10", reverse: "web01.aloli.fr.")
 
 L'exemple complet est dans link:examples/provision_debian.cr[`examples/provision_debian.cr`].
 
+== Orchestration rescue OVH
+
+Depuis la v0.2, ovh-api expose les endpoints de netboot / reboot et un
+helper de haut niveau `prepare_rescue` qui enchaîne les quatre appels
+nécessaires pour basculer un serveur en mode rescue avec une clé SSH
+posée :
+
+. Recherche du `bootId` `rescue` UEFI-compatible via
+  `GET /dedicated/server/\*/boot` puis `GET .../boot/\{id\}`.
+. `PUT /dedicated/server/\*` avec `{"bootId": <rescueId>}`.
+. `POST /dedicated/server/\*/netbootOption` avec
+  `{"option":"rescueSshKey","value":"<ssh-key-name>"}`.
+. `POST /dedicated/server/\*/reboot` → `Task`.
+
+[source,crystal]
+----
+# La clé doit déjà exister dans /me/sshKey.
+client.ssh_keys.list.includes?("laptop") # => true
+
+task = client.dedicated_servers.prepare_rescue(
+  service_name: "ns1.ip-1-2-3.eu",
+  ssh_key_name: "laptop",
+)
+puts "Tâche rescue #{task.id} (#{task.status})"
+
+loop do
+  task = client.dedicated_servers.task(
+    service_name: "ns1.ip-1-2-3.eu",
+    task_id: task.id,
+  )
+  break if task.done?
+  sleep 15.seconds
+end
+----
+
+Les appels bas niveau restent accessibles individuellement
+(`boots`, `boot`, `set_boot`, `set_netboot_option`, `reboot`) si vous
+avez besoin d'un orchestrateur différent (ex. basculer en
+`ipxeCustomerScript`).
+
 == Obtenir des credentials OVH
 
 . Créer une application sur https://eu.api.ovh.com/createApp/[eu.api.ovh.com/createApp] →
@@ -133,6 +173,11 @@ GET  /dedicated/server/*/task
 GET  /dedicated/server/*/task/*
 GET  /ip/*/reverse
 POST /ip/*/reverse
+GET  /dedicated/server/*/boot
+GET  /dedicated/server/*/boot/*
+PUT  /dedicated/server/*
+POST /dedicated/server/*/netbootOption
+POST /dedicated/server/*/reboot
 ----
 . Valider l'URL retournée (SMS ou mot de passe manager OVH) : le consumer key
   est alors actif.
@@ -155,7 +200,7 @@ il se contente de lister les clés, serveurs et templates.
 
 == Statut
 
-Projet en phase initiale (v0.1 — endpoints de provisioning couverts).
+Projet en phase initiale (v0.2 — provisioning + rescue mode couverts).
 
 * link:ARCHITECTURE.adoc[ARCHITECTURE.adoc] — signature, routage, taxonomie.
 * link:CHANGELOG.adoc[CHANGELOG.adoc] — historique des changements.
