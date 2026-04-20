@@ -147,6 +147,129 @@ describe OvhApi::Endpoints::DedicatedServers do
     end
   end
 
+  describe "#boots" do
+    it "liste les bootId disponibles pour un serveur" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "GET",
+        /dedicated\/server\/ns1\.ip-1-2-3\.eu\/boot$/,
+        status: 200,
+        body: "[1,2,3,42]",
+      )
+
+      client.dedicated_servers.boots("ns1.ip-1-2-3.eu")
+        .should eq([1_i64, 2_i64, 3_i64, 42_i64])
+    end
+  end
+
+  describe "#boot" do
+    it "décode le détail d'un boot (struct Boot)" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "GET",
+        /dedicated\/server\/ns1\.ip-1-2-3\.eu\/boot\/42/,
+        status: 200,
+        body: %({
+          "bootId": 42,
+          "bootType": "rescue",
+          "kernel": "rescue64-pro",
+          "description": "Rescue 64 bits",
+          "supportsUEFI": "yes"
+        }),
+      )
+
+      boot = client.dedicated_servers.boot("ns1.ip-1-2-3.eu", 42_i64)
+      boot.id.should eq(42_i64)
+      boot.boot_type.should eq("rescue")
+      boot.kernel.should eq("rescue64-pro")
+      boot.description.should eq("Rescue 64 bits")
+      boot.supports_uefi.should eq("yes")
+      boot.uefi_compatible?.should be_true
+    end
+
+    it "considère un boot sans supportsUEFI comme compatible" do
+      boot = OvhApi::Endpoints::Boot.new(id: 1, boot_type: "harddisk")
+      boot.uefi_compatible?.should be_true
+    end
+
+    it "rejette un boot avec supportsUEFI=no" do
+      boot = OvhApi::Endpoints::Boot.new(
+        id: 1,
+        boot_type: "rescue",
+        supports_uefi: "no",
+      )
+      boot.uefi_compatible?.should be_false
+    end
+  end
+
+  describe "#set_boot" do
+    it "PUT /dedicated/server/{serviceName} avec bootId en corps" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "PUT",
+        /dedicated\/server\/ns1\.ip-1-2-3\.eu$/,
+        status: 200,
+        body: "",
+      )
+
+      client.dedicated_servers.set_boot("ns1.ip-1-2-3.eu", 42_i64)
+
+      req = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      req.url.should end_with("/dedicated/server/ns1.ip-1-2-3.eu")
+      req.body.should contain(%("bootId":42))
+    end
+  end
+
+  describe "#set_netboot_option" do
+    it "POST /netbootOption avec option et value" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "POST",
+        /netbootOption/,
+        status: 200,
+        body: "",
+      )
+
+      client.dedicated_servers.set_netboot_option(
+        service_name: "ns1.ip-1-2-3.eu",
+        option: "rescueSshKey",
+        value: "laptop",
+      )
+
+      req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+      req.url.should end_with("/dedicated/server/ns1.ip-1-2-3.eu/netbootOption")
+      req.body.should contain(%("option":"rescueSshKey"))
+      req.body.should contain(%("value":"laptop"))
+    end
+  end
+
+  describe "#reboot" do
+    it "POST /reboot et décode la Task" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "POST",
+        /reboot/,
+        status: 200,
+        body: %({"taskId":99,"function":"hardReboot","status":"init"}),
+      )
+
+      task = client.dedicated_servers.reboot("ns1.ip-1-2-3.eu")
+
+      task.id.should eq(99_i64)
+      task.function.should eq("hardReboot")
+      task.status.should eq("init")
+      task.done?.should be_false
+
+      req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+      req.url.should end_with("/dedicated/server/ns1.ip-1-2-3.eu/reboot")
+    end
+  end
+
   describe "Task#done?" do
     it "true pour done, cancelled, ovhError, customerError" do
       base = {"taskId" => 1_i64, "function" => "x"}

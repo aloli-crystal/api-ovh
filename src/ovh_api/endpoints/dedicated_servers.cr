@@ -127,6 +127,138 @@ module OvhApi
         )
         Task.from_any(result.not_nil!)
       end
+
+      # Liste les `bootId` disponibles pour un serveur.
+      #
+      # `GET /dedicated/server/{serviceName}/boot` → tableau d'entiers.
+      # Chaque `bootId` pointe vers un profil de netboot (harddisk,
+      # rescue64-pro, ipxeCustomerScript, etc.), dont le détail est lu
+      # via `#boot(service_name, boot_id)`.
+      def boots(service_name : String) : Array(Int64)
+        result = @client.call("GET", "/dedicated/server/#{service_name}/boot")
+        result.try(&.as_a.map(&.as_i64)) || [] of Int64
+      end
+
+      # Détail d'un bootId (type, kernel, description, supportsUEFI).
+      #
+      # `GET /dedicated/server/{serviceName}/boot/{bootId}`.
+      def boot(service_name : String, boot_id : Int64) : Boot
+        result = @client.call(
+          "GET",
+          "/dedicated/server/#{service_name}/boot/#{boot_id}",
+        )
+        Boot.from_any(result.not_nil!)
+      end
+
+      # Change le netboot courant du serveur (son `bootId`).
+      #
+      # `PUT /dedicated/server/{serviceName}` avec `{"bootId": <id>}`.
+      # OVH répond avec un corps vide en cas de succès.
+      def set_boot(service_name : String, boot_id : Int64) : Nil
+        body = JSON.build do |json|
+          json.object do
+            json.field "bootId", boot_id
+          end
+        end
+
+        @client.call(
+          "PUT",
+          "/dedicated/server/#{service_name}",
+          body: body,
+        )
+        nil
+      end
+
+      # Configure une option du netboot (ex. la clé SSH à injecter en
+      # rescue).
+      #
+      # `POST /dedicated/server/{serviceName}/netbootOption` avec
+      # `{"option": "<option>", "value": "<value>"}`. L'option la plus
+      # utile côté provisioning est `"rescueSshKey"`, dont la `value`
+      # est le *nom* d'une clé SSH déclarée dans `/me/sshKey`.
+      def set_netboot_option(service_name : String, option : String, value : String) : Nil
+        body = JSON.build do |json|
+          json.object do
+            json.field "option", option
+            json.field "value", value
+          end
+        end
+
+        @client.call(
+          "POST",
+          "/dedicated/server/#{service_name}/netbootOption",
+          body: body,
+        )
+        nil
+      end
+
+      # Déclenche un redémarrage matériel du serveur.
+      #
+      # `POST /dedicated/server/{serviceName}/reboot` → retourne une
+      # `Task` (function `"hardReboot"` côté OVH). Le reboot applique le
+      # netboot en vigueur, donc configurer `set_boot` + éventuellement
+      # `set_netboot_option` *avant* d'appeler cette méthode.
+      def reboot(service_name : String) : Task
+        result = @client.call(
+          "POST",
+          "/dedicated/server/#{service_name}/reboot",
+        )
+        Task.from_any(result.not_nil!)
+      end
+    end
+
+    # Profil de netboot exposé par OVH pour un serveur donné.
+    #
+    # Un `Boot` décrit comment démarrer le serveur : depuis le disque
+    # (`harddisk`), en mode rescue (`rescue` → kernel `rescue64-pro`,
+    # fournit un environnement diskless pour diagnostic), via un script
+    # iPXE client (`ipxeCustomerScript`), par PXE réseau (`network`) ou
+    # simple gestion d'alim (`power`).
+    #
+    # Les `bootId` varient *selon la gamme et le serveur* : un Advance-1
+    # et un Scale-3 n'auront pas les mêmes identifiants. Il faut donc les
+    # résoudre dynamiquement via `client.dedicated_servers.boots(...)`.
+    struct Boot
+      getter id : Int64
+      getter boot_type : String
+      getter kernel : String?
+      getter description : String?
+      getter supports_uefi : String?
+
+      def initialize(
+        @id : Int64,
+        @boot_type : String,
+        @kernel : String? = nil,
+        @description : String? = nil,
+        @supports_uefi : String? = nil,
+      )
+      end
+
+      def self.from_any(payload : JSON::Any) : Boot
+        new(
+          id: payload["bootId"].as_i64,
+          boot_type: payload["bootType"].as_s,
+          kernel: payload["kernel"]?.try(&.as_s?),
+          description: payload["description"]?.try(&.as_s?),
+          supports_uefi: payload["supportsUEFI"]?.try(&.as_s?),
+        )
+      end
+
+      # Le boot est-il compatible avec un démarrage UEFI ?
+      #
+      # OVH expose `supportsUEFI` avec les valeurs documentées `"yes"`,
+      # `"no"`, `"both"`, `"only"`. Certains profils (power, anciens
+      # netboots) ne renseignent pas le champ : on considère alors que
+      # la question ne se pose pas et on répond `true` (sinon on
+      # exclurait à tort les serveurs sans UEFI).
+      def uefi_compatible? : Bool
+        case @supports_uefi
+        when nil, "yes", "both", "only"
+          true
+        else
+          false
+        end
+      end
     end
 
     # Représente une tâche OVH (install, reboot, diagnostic…).
