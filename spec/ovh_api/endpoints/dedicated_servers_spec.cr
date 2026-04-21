@@ -64,7 +64,7 @@ describe OvhApi::Endpoints::DedicatedServers do
       task.status.should eq("init")
       task.done?.should be_false
 
-      req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+      req = transport.requests.find! { |r| r.method == "POST" }
       req.body.should contain(%("operatingSystem":"debian12_64"))
       req.body.should contain(%("hostname":"web01.aloli.fr"))
       req.body.should contain(%("sshKey":"laptop"))
@@ -85,7 +85,7 @@ describe OvhApi::Endpoints::DedicatedServers do
         template: "debian12_64",
       )
 
-      req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+      req = transport.requests.find! { |r| r.method == "POST" }
       req.body.should_not contain("customizations")
     end
   end
@@ -111,7 +111,7 @@ describe OvhApi::Endpoints::DedicatedServers do
         status: "doing",
       )
 
-      req = transport.requests.find { |r| r.method == "GET" && r.url.includes?("task") }.not_nil!
+      req = transport.requests.find! { |r| r.method == "GET" && r.url.includes?("task") }
       req.url.should contain("function=reinstallServer")
       req.url.should contain("status=doing")
     end
@@ -231,7 +231,7 @@ describe OvhApi::Endpoints::DedicatedServers do
 
       client.dedicated_servers.set_boot("ns1.ip-1-2-3.eu", 42_i64)
 
-      req = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      req = transport.requests.find! { |r| r.method == "PUT" }
       req.url.should end_with("/dedicated/server/ns1.ip-1-2-3.eu")
       req.body.should contain(%("bootId":42))
     end
@@ -252,7 +252,7 @@ describe OvhApi::Endpoints::DedicatedServers do
         rescue_ssh_key: "laptop",
       )
 
-      req = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      req = transport.requests.find! { |r| r.method == "PUT" }
       req.body.should contain(%("bootId":42))
       req.body.should contain(%("rescueSshKey":"laptop"))
     end
@@ -269,7 +269,7 @@ describe OvhApi::Endpoints::DedicatedServers do
 
       client.dedicated_servers.set_boot("ns1.ip-1-2-3.eu", 42_i64)
 
-      req = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      req = transport.requests.find! { |r| r.method == "PUT" }
       req.body.should_not contain("rescueSshKey")
     end
   end
@@ -292,7 +292,7 @@ describe OvhApi::Endpoints::DedicatedServers do
       task.status.should eq("init")
       task.done?.should be_false
 
-      req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+      req = transport.requests.find! { |r| r.method == "POST" }
       req.url.should end_with("/dedicated/server/ns1.ip-1-2-3.eu/reboot")
     end
   end
@@ -368,7 +368,7 @@ describe OvhApi::Endpoints::DedicatedServers do
       ])
 
       # Le PUT combine bootId=42 et rescueSshKey = **contenu** de la clé.
-      put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      put = transport.requests.find! { |r| r.method == "PUT" }
       put.body.should contain(%("bootId":42))
       put.body.should contain(%("rescueSshKey":"ssh-ed25519 AAAA... me@host"))
     end
@@ -411,7 +411,7 @@ describe OvhApi::Endpoints::DedicatedServers do
         ssh_key_name: "laptop",
       )
 
-      put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      put = transport.requests.find! { |r| r.method == "PUT" }
       put.body.should contain(%("bootId":230242))
       put.body.should_not contain("203323")
     end
@@ -472,7 +472,7 @@ describe OvhApi::Endpoints::DedicatedServers do
       task = client.dedicated_servers.boot_from_disk("ns1.ip-1-2-3.eu")
       task.id.should eq(501_i64)
 
-      put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      put = transport.requests.find! { |r| r.method == "PUT" }
       put.body.should contain(%("bootId":1))
     end
 

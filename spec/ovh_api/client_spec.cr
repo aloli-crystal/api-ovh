@@ -106,7 +106,7 @@ describe OvhApi::Client do
 
       client.call("GET", "/me")
 
-      req = transport.requests.find { |r| r.url.ends_with?("/me") }.not_nil!
+      req = transport.requests.find! { |r| r.url.ends_with?("/me") }
       req.headers["X-Ovh-Application"].should eq("app-key")
       req.headers["X-Ovh-Consumer"].should eq("consumer-key")
       req.headers["X-Ovh-Timestamp"].should eq("1700000000")
@@ -120,7 +120,7 @@ describe OvhApi::Client do
 
       client.call("POST", "/me/sshKey", body: {"keyName" => "laptop", "key" => "ssh"})
 
-      req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+      req = transport.requests.find! { |r| r.method == "POST" }
       # Le corps envoyé doit être le JSON compact attendu.
       req.body.should eq(%({"keyName":"laptop","key":"ssh"}))
       # La signature doit porter sur ce corps exact.
@@ -150,7 +150,7 @@ describe OvhApi::Client do
         function: "reinstallServer",
       )
 
-      req = transport.requests.find { |r| r.method == "GET" && r.url.includes?("task") }.not_nil!
+      req = transport.requests.find! { |r| r.method == "GET" && r.url.includes?("task") }
       req.url.should contain("function=reinstallServer")
       # La signature doit correspondre à l'URL incluant la query.
       expected = client.sign("GET", req.url, "", 1_700_000_000, "consumer-key")

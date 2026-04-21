@@ -40,7 +40,7 @@ describe OvhApi::Endpoints::SshKeys do
 
     client.ssh_keys.create(name: "laptop", key: "ssh-ed25519 AAAA")
 
-    req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+    req = transport.requests.find! { |r| r.method == "POST" }
     req.body.should eq(%({"keyName":"laptop","key":"ssh-ed25519 AAAA","default":false}))
   end
 
@@ -51,7 +51,7 @@ describe OvhApi::Endpoints::SshKeys do
 
     client.ssh_keys.create(name: "laptop", key: "ssh-ed25519 AAAA", default: true)
 
-    req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+    req = transport.requests.find! { |r| r.method == "POST" }
     req.body.should contain(%("default":true))
   end
 

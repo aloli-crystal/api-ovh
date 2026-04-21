@@ -42,7 +42,7 @@ describe OvhApi::Endpoints::Ips do
     rev = client.ips.set_reverse(ip: "192.0.2.10", reverse: "web01.aloli.fr.")
     rev.reverse.should eq("web01.aloli.fr.")
 
-    req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+    req = transport.requests.find! { |r| r.method == "POST" }
     req.body.should contain(%("ipReverse":"192.0.2.10"))
     req.body.should contain(%("reverse":"web01.aloli.fr."))
   end
@@ -63,7 +63,7 @@ describe OvhApi::Endpoints::Ips do
       reverse: "web01.aloli.fr.",
     )
 
-    req = transport.requests.find { |r| r.method == "POST" }.not_nil!
+    req = transport.requests.find! { |r| r.method == "POST" }
     req.url.should contain("192.0.2.0")
     req.body.should contain(%("ipReverse":"192.0.2.10"))
   end
