@@ -7,6 +7,16 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.2.4 (21 avril 2026)
+
+=== Ajouté
+
+* `client.dedicated_servers.boot_from_disk(service_name)` : orchestration
+  inverse de `prepare_rescue`. Trouve le `bootId` de type `harddisk`,
+  l'arme via `set_boot`, puis déclenche un reboot. À utiliser après une
+  install réussie pour que le serveur redémarre sur l'OS fraîchement
+  posé au lieu de retomber en rescue.
+
 == 0.2.3 (20 avril 2026)
 
 === Corrigé

@@ -225,6 +225,35 @@ module OvhApi
         reboot(service_name)
       end
 
+      # Orchestration inverse de `prepare_rescue` : bascule le netboot
+      # courant vers le profil `harddisk` et reboot. À utiliser après une
+      # install réussie pour que le serveur redémarre sur l'OS qu'on vient
+      # de poser sur le disque, et non en rescue.
+      #
+      # Retourne la `Task` du reboot (function `hardReboot` côté OVH).
+      def boot_from_disk(service_name : String) : Task
+        harddisk_id = find_harddisk_boot_id(service_name)
+        set_boot(service_name, harddisk_id)
+        reboot(service_name)
+      end
+
+      # Cherche un `bootId` de type harddisk sur le serveur.
+      # Lève une `OvhApi::Error` si aucun candidat.
+      private def find_harddisk_boot_id(service_name : String) : Int64
+        candidates = boots(service_name).compact_map do |id|
+          detail = boot(service_name, id)
+          detail.boot_type == "harddisk" ? detail : nil
+        end
+
+        if candidates.empty?
+          raise Error.new(
+            "Aucun bootId de type 'harddisk' trouvé pour #{service_name}. " \
+            "Vérifier /dedicated/server/#{service_name}/boot."
+          )
+        end
+        candidates.first.id
+      end
+
       # Cherche un `bootId` de type rescue compatible UEFI sur le serveur.
       # Lève une `OvhApi::Error` si aucun candidat n'est trouvé.
       #

@@ -443,6 +443,55 @@ describe OvhApi::Endpoints::DedicatedServers do
     end
   end
 
+  describe "#boot_from_disk" do
+    it "arme le bootId harddisk puis reboot (orchestration inverse de prepare_rescue)" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+
+      transport.stub("GET", /\/boot$/, status: 200, body: "[1,42]")
+      transport.stub(
+        "GET",
+        /\/boot\/1$/,
+        status: 200,
+        body: %({"bootId":1,"bootType":"harddisk","supportsUEFI":"yes"}),
+      )
+      transport.stub(
+        "GET",
+        /\/boot\/42$/,
+        status: 200,
+        body: %({"bootId":42,"bootType":"rescue","kernel":"rescue64-pro"}),
+      )
+      transport.stub("PUT", /dedicated\/server\/ns1\.ip-1-2-3\.eu$/, status: 200, body: "")
+      transport.stub(
+        "POST",
+        /reboot/,
+        status: 200,
+        body: %({"taskId":501,"function":"hardReboot","status":"init"}),
+      )
+
+      task = client.dedicated_servers.boot_from_disk("ns1.ip-1-2-3.eu")
+      task.id.should eq(501_i64)
+
+      put = transport.requests.find { |r| r.method == "PUT" }.not_nil!
+      put.body.should contain(%("bootId":1))
+    end
+
+    it "lève si aucun bootId harddisk n'existe" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub("GET", /\/boot$/, status: 200, body: "[42]")
+      transport.stub(
+        "GET",
+        /\/boot\/42$/,
+        status: 200,
+        body: %({"bootId":42,"bootType":"rescue","kernel":"rescue64-pro"}),
+      )
+      expect_raises(OvhApi::Error, /harddisk/) do
+        client.dedicated_servers.boot_from_disk("ns1.ip-1-2-3.eu")
+      end
+    end
+  end
+
   describe "Task#done?" do
     it "true pour done, cancelled, ovhError, customerError" do
       base = {"taskId" => 1_i64, "function" => "x"}
