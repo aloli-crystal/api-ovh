@@ -27,20 +27,40 @@ module OvhApi
         @client.call("GET", "/dedicated/server/#{service_name}").not_nil!
       end
 
-      # Modifie les champs inscriptibles d'un serveur. Actuellement, le
-      # seul champ exposé est `display_name` (le nom personnalisé affiché
-      # dans le panel OVH ; le `name` technique `nsXXXXX.ip-A-B-C.tld`
-      # n'est pas modifiable).
+      # Modifie le `displayName` d'un serveur dédié (nom personnalisé
+      # visible dans le panel OVH). Le `name` technique
+      # `nsXXXXX.ip-A-B-C.tld` n'est pas modifiable.
       #
-      # `PUT /dedicated/server/{serviceName}` avec `{displayName: "..."}`.
+      # Côté API, le displayName ne vit PAS sur `/dedicated/server/{X}`
+      # (OVH a retiré ce champ : PUT renvoie 400 « Some properties does
+      # not exist: displayName »). Il vit sur `/services/{serviceId}`
+      # (API transverse à tous les services OVH, schéma
+      # `services.update.Service`). On fait donc un flux à deux étapes :
+      #
+      #   1. GET /dedicated/server/{serviceName}/serviceInfos → serviceId (long)
+      #   2. PUT /services/{serviceId}  body: {displayName: "..."}
+      #
+      # Découvert terrain 23 avril 2026 sur loulou :
+      #   HTTP 400 : "Some properties does not exist: displayName"
       def update(
         service_name : String,
         display_name : String? = nil,
       ) : Nil
-        body = {} of String => String
-        body["displayName"] = display_name if display_name
-        return if body.empty?
-        @client.call("PUT", "/dedicated/server/#{service_name}", body: body)
+        return unless display_name
+        service_id = service_id_for(service_name)
+        @client.call(
+          "PUT", "/services/#{service_id}",
+          body: {"displayName" => display_name},
+        )
+      end
+
+      # Retourne le `serviceId` (long) d'un serveur dédié à partir de
+      # son `serviceName` (ex: `ns3156789.ip-51-83-6.eu`). Passe par
+      # `GET /dedicated/server/{serviceName}/serviceInfos` qui est la
+      # source canonique côté OVH pour cette correspondance.
+      def service_id_for(service_name : String) : Int64
+        info = @client.call("GET", "/dedicated/server/#{service_name}/serviceInfos").not_nil!
+        info["serviceId"].as_i64
       end
 
       # Liste les IPs (v4 + v6) affectées au serveur, au format bloc

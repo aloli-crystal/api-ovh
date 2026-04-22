@@ -28,15 +28,25 @@ describe OvhApi::Endpoints::DedicatedServers do
     info["state"].as_s.should eq("ok")
   end
 
-  it "met à jour le displayName via PUT" do
+  it "met à jour le displayName via GET serviceInfos puis PUT /services/{id}" do
+    # Flux à deux étapes : le displayName ne vit plus sur
+    # /dedicated/server/{X} (OVH a retiré ce champ, HTTP 400), mais sur
+    # /services/{serviceId}. On découvre le serviceId via serviceInfos.
     transport = FakeTransport.new
     client = build_client(transport)
-    transport.stub("PUT", /dedicated\/server\/ns1/, status: 200, body: "null")
+    transport.stub(
+      "GET",
+      /dedicated\/server\/ns1\.ip-1-2-3\.eu\/serviceInfos/,
+      status: 200,
+      body: %({"serviceId":123456789,"status":"ok"}),
+    )
+    transport.stub("PUT", /\/services\/123456789/, status: 200, body: "null")
 
     client.dedicated_servers.update("ns1.ip-1-2-3.eu", display_name: "loulou.aloli.net")
 
-    req = transport.requests.find! { |r| r.method == "PUT" }
-    req.body.should contain(%("displayName":"loulou.aloli.net"))
+    put = transport.requests.find! { |r| r.method == "PUT" }
+    put.url.should contain("/services/123456789")
+    put.body.should contain(%("displayName":"loulou.aloli.net"))
   end
 
   it "n'appelle pas l'API si aucun champ n'est fourni à update" do
@@ -46,6 +56,18 @@ describe OvhApi::Endpoints::DedicatedServers do
     client.dedicated_servers.update("ns1.ip-1-2-3.eu")
 
     transport.requests.should be_empty
+  end
+
+  it "service_id_for résout serviceName → serviceId via serviceInfos" do
+    transport = FakeTransport.new
+    client = build_client(transport)
+    transport.stub(
+      "GET",
+      /dedicated\/server\/ns1\.ip-1-2-3\.eu\/serviceInfos/,
+      status: 200,
+      body: %({"serviceId":42,"status":"ok"}),
+    )
+    client.dedicated_servers.service_id_for("ns1.ip-1-2-3.eu").should eq(42_i64)
   end
 
   it "liste les IPs du serveur" do
