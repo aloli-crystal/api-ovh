@@ -4,6 +4,7 @@ require "./ovh_api/endpoints/ssh_keys"
 require "./ovh_api/endpoints/dedicated_servers"
 require "./ovh_api/endpoints/ips"
 require "./ovh_api/endpoints/domains"
+require "./ovh_api/endpoints/auth"
 require "./ovh_api/client"
 
 # OvhApi — client Crystal pur (stdlib uniquement) pour l'API OVHcloud v1.

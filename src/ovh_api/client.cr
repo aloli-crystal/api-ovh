@@ -161,12 +161,24 @@ module OvhApi
     #                    `/auth/time` et quelques rares endpoints publics.
     #
     # Retourne le corps parsé en `JSON::Any` (ou `nil` si corps vide).
+    # Trois modes d'authentification possibles :
+    #
+    #   * `auth: true`        → signature HMAC + consumer_key (défaut,
+    #                           pour toutes les routes utilisateur).
+    #   * `app_only: true`    → seul `X-Ovh-Application` est envoyé,
+    #                           pas de HMAC. Utilisé par
+    #                           `POST /auth/credential` qui sert
+    #                           justement à obtenir un consumer_key.
+    #   * `auth: false`       → aucun header d'auth (pour `/auth/time`).
+    #
+    # `app_only: true` prime sur `auth: true` si les deux sont passés.
     def call(
       method : String,
       path : String,
       query : Hash(String, String)? = nil,
       body = nil,
       auth : Bool = true,
+      app_only : Bool = false,
     ) : JSON::Any?
       url = build_url(path, query)
       body_str = serialize_body(body)
@@ -175,7 +187,11 @@ module OvhApi
         "Content-Type" => "application/json",
       }
 
-      if auth
+      if app_only
+        # `POST /auth/credential` : X-Ovh-Application seul, aucun
+        # HMAC (le consumer_key est ce qu'on essaie d'obtenir).
+        headers["X-Ovh-Application"] = @application_key
+      elsif auth
         ck = @consumer_key || raise AuthenticationError.new(
           "Un consumer_key est requis pour appeler #{method} #{path}.",
         )
@@ -264,9 +280,14 @@ module OvhApi
       @domains ||= Endpoints::Domains.new(self)
     end
 
+    def auth : Endpoints::Auth
+      @auth ||= Endpoints::Auth.new(self)
+    end
+
     @ssh_keys : Endpoints::SshKeys?
     @dedicated_servers : Endpoints::DedicatedServers?
     @ips : Endpoints::Ips?
     @domains : Endpoints::Domains?
+    @auth : Endpoints::Auth?
   end
 end
