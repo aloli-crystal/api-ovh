@@ -28,6 +28,40 @@ describe OvhApi::Endpoints::DedicatedServers do
     info["state"].as_s.should eq("ok")
   end
 
+  it "met à jour le displayName via PUT" do
+    transport = FakeTransport.new
+    client = build_client(transport)
+    transport.stub("PUT", /dedicated\/server\/ns1/, status: 200, body: "null")
+
+    client.dedicated_servers.update("ns1.ip-1-2-3.eu", display_name: "loulou.aloli.net")
+
+    req = transport.requests.find! { |r| r.method == "PUT" }
+    req.body.should contain(%("displayName":"loulou.aloli.net"))
+  end
+
+  it "n'appelle pas l'API si aucun champ n'est fourni à update" do
+    transport = FakeTransport.new
+    client = build_client(transport)
+
+    client.dedicated_servers.update("ns1.ip-1-2-3.eu")
+
+    transport.requests.should be_empty
+  end
+
+  it "liste les IPs du serveur" do
+    transport = FakeTransport.new
+    client = build_client(transport)
+    transport.stub(
+      "GET",
+      /dedicated\/server\/ns1\.ip-1-2-3\.eu\/ips/,
+      status: 200,
+      body: %(["51.83.6.123/32","2001:41d0:2:6e01::/64"]),
+    )
+
+    ips = client.dedicated_servers.ips("ns1.ip-1-2-3.eu")
+    ips.should eq(["51.83.6.123/32", "2001:41d0:2:6e01::/64"])
+  end
+
   it "liste les templates d'installation" do
     transport = FakeTransport.new
     client = build_client(transport)

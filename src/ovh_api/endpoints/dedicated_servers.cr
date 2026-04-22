@@ -27,6 +27,31 @@ module OvhApi
         @client.call("GET", "/dedicated/server/#{service_name}").not_nil!
       end
 
+      # Modifie les champs inscriptibles d'un serveur. Actuellement, le
+      # seul champ exposé est `display_name` (le nom personnalisé affiché
+      # dans le panel OVH ; le `name` technique `nsXXXXX.ip-A-B-C.tld`
+      # n'est pas modifiable).
+      #
+      # `PUT /dedicated/server/{serviceName}` avec `{displayName: "..."}`.
+      def update(
+        service_name : String,
+        display_name : String? = nil,
+      ) : Nil
+        body = {} of String => String
+        body["displayName"] = display_name if display_name
+        return if body.empty?
+        @client.call("PUT", "/dedicated/server/#{service_name}", body: body)
+      end
+
+      # Liste les IPs (v4 + v6) affectées au serveur, au format bloc
+      # CIDR. Exemple : `["51.83.6.123/32", "2001:41d0:2:6e01::/64"]`.
+      #
+      # `GET /dedicated/server/{serviceName}/ips`.
+      def ips(service_name : String) : Array(String)
+        result = @client.call("GET", "/dedicated/server/#{service_name}/ips")
+        result.try(&.as_a.map(&.as_s)) || [] of String
+      end
+
       # Liste les templates d'installation disponibles (OS standards
       # OVH : Debian, Ubuntu, Rocky, FreeBSD si proposé par la gamme).
       #

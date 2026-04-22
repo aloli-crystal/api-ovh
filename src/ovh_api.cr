@@ -3,6 +3,7 @@ require "./ovh_api/errors"
 require "./ovh_api/endpoints/ssh_keys"
 require "./ovh_api/endpoints/dedicated_servers"
 require "./ovh_api/endpoints/ips"
+require "./ovh_api/endpoints/domains"
 require "./ovh_api/client"
 
 # OvhApi — client Crystal pur (stdlib uniquement) pour l'API OVHcloud v1.
@@ -11,8 +12,11 @@ require "./ovh_api/client"
 #
 # * `client.ssh_keys`          — lister / créer / supprimer les clés SSH du compte.
 # * `client.dedicated_servers` — lister les serveurs, lancer une réinstallation,
-#                                suivre la tâche.
+#                                suivre la tâche, renommer (displayName), lister
+#                                les IPs allouées.
 # * `client.ips`               — lire et écrire le DNS inverse des IPs.
+# * `client.domains`           — gérer les enregistrements DNS d'une zone
+#                                (A/AAAA/CNAME/MX…), rafraîchir la zone.
 #
 # ```
 # require "ovh-api"

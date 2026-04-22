@@ -1,11 +1,12 @@
 name: ovh-api
-version: 0.2.4
+version: 0.3.0
 
 description: >
   Client Crystal pur (stdlib uniquement) pour l'API OVHcloud v1.
   Couvre les endpoints nécessaires au provisioning : clés SSH, serveurs
-  dédiés (install, suivi de tâche), DNS inverse. Zéro dépendance externe,
-  signature X-Ovh-Signature calculée localement.
+  dédiés (install, suivi de tâche, displayName, IPs), DNS inverse,
+  zones DNS (records, refresh). Zéro dépendance externe, signature
+  X-Ovh-Signature calculée localement.
 
 authors:
   - ALOLI sas <philippe@aloli.fr>

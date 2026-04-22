@@ -260,8 +260,13 @@ module OvhApi
       @ips ||= Endpoints::Ips.new(self)
     end
 
+    def domains : Endpoints::Domains
+      @domains ||= Endpoints::Domains.new(self)
+    end
+
     @ssh_keys : Endpoints::SshKeys?
     @dedicated_servers : Endpoints::DedicatedServers?
     @ips : Endpoints::Ips?
+    @domains : Endpoints::Domains?
   end
 end
