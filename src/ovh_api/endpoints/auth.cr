@@ -19,6 +19,27 @@ module OvhApi
       def initialize(@client : Client)
       end
 
+      # Retourne les méta-données de la consumer key courante
+      # (celle configurée dans le `Client`). `GET /auth/currentCredential`
+      # renvoie notamment l'expiration — utile pour avertir l'utilisateur
+      # combien de temps il reste avant de régénérer la clé.
+      #
+      # `expiration` peut être nil quand la clé a été créée en validité
+      # illimitée. `last_use` peut aussi être nil si la clé vient d'être
+      # validée et n'a jamais servi.
+      def current_credential : CredentialInfo
+        response = @client.call("GET", "/auth/currentCredential").not_nil!
+        CredentialInfo.new(
+          credential_id: response["credentialId"].as_i64,
+          application_id: response["applicationId"].as_i64,
+          creation: Time.parse_iso8601(response["creation"].as_s),
+          expiration: response["expiration"]?.try(&.as_s?).try { |s| Time.parse_iso8601(s) },
+          last_use: response["lastUse"]?.try(&.as_s?).try { |s| Time.parse_iso8601(s) },
+          status: response["status"].as_s,
+          ovh_support: response["ovhSupport"]?.try(&.as_bool?) || false,
+        )
+      end
+
       # Demande une consumer key OVH avec les droits exacts listés.
       # Chaque règle est un couple `{method, path}` (ex: `{"GET",
       # "/dedicated/server/*"}`). Les wildcards `*` sont supportés
@@ -68,5 +89,29 @@ module OvhApi
       consumer_key : String,
       validation_url : String,
       state : String
+
+    # Méta-données d'une consumer key (renvoyées par
+    # `GET /auth/currentCredential`).
+    #
+    # `expiration` est nil pour les clés créées en validité illimitée.
+    # `status` est typiquement `"validated"` pour une clé utilisable,
+    # `"pendingValidation"` pour une clé pas encore confirmée côté OVH,
+    # `"expired"` pour une clé périmée.
+    record CredentialInfo,
+      credential_id : Int64,
+      application_id : Int64,
+      creation : Time,
+      expiration : Time?,
+      last_use : Time?,
+      status : String,
+      ovh_support : Bool do
+      # Nombre de jours restants avant l'expiration. Retourne nil si
+      # la clé est en validité illimitée.
+      def days_until_expiration : Int32?
+        exp = @expiration
+        return nil unless exp
+        ((exp - Time.utc).total_days).to_i
+      end
+    end
   end
 end
