@@ -1,4 +1,4 @@
-= ovh-api
+= api-ovh
 :toc: left
 :toc-title: Table of Contents
 :toclevels: 3
@@ -11,19 +11,19 @@ task polling, reverse DNS.
 
 [NOTE]
 ====
-*ovh-api* is a sister project in the Aloli Crystal ecosystem alongside
-https://github.com/aloli-crystal/crystal-beryl[crystal-beryl] (agentless FreeBSD
+*api-ovh* is a sister project in the Aloli Crystal ecosystem alongside
+https://github.com/aloli-crystal/beryl[beryl] (agentless FreeBSD
 configuration) and https://github.com/aloli-crystal/crystal-silex[crystal-silex]
 (pure-Crystal FAT12 / cloud-init NoCloud writer). Zero external dependencies: only
 `HTTP::Client`, `OpenSSL`, `JSON` from the Crystal stdlib.
 ====
 
-== Why ovh-api?
+== Why api-ovh?
 
 OVH's official clients exist in Python, Node, Go, PHP and Java, but not Crystal.
 Existing Crystal wrappers are abandoned or pull in third-party HTTP shards.
 
-ovh-api computes the `X-Ovh-Signature` locally (SHA-1), uses stdlib only, and
+api-ovh computes the `X-Ovh-Signature` locally (SHA-1), uses stdlib only, and
 exposes an idiomatic Crystal API that is easy to test by injecting a fake HTTP
 transport.
 
@@ -41,7 +41,7 @@ transport.
 
 [cols="1,3"]
 |===
-| ovh-api does | ovh-api does not (yet)
+| api-ovh does | api-ovh does not (yet)
 
 | SSH keys (`/me/sshKey`): list, get, create, delete.
 | Full account management (`/me/*`).
@@ -63,8 +63,8 @@ In your `shard.yml`:
 [source,yaml]
 ----
 dependencies:
-  ovh-api:
-    github: aloli-crystal/crystal-ovh-api
+  api-ovh:
+    github: aloli-crystal/crystal-api-ovh
     version: ~> 0.2
 ----
 
@@ -74,7 +74,7 @@ Then `shards install`.
 
 [source,crystal]
 ----
-require "ovh-api"
+require "api-ovh"
 
 client = OvhApi::Client.new(
   application_key:    ENV["OVH_APPLICATION_KEY"],
@@ -117,7 +117,7 @@ Full runnable example in link:examples/provision_debian.cr[`examples/provision_d
 
 == OVH rescue orchestration
 
-Since v0.2.1, ovh-api exposes the netboot / reboot endpoints plus a
+Since v0.2.1, api-ovh exposes the netboot / reboot endpoints plus a
 high-level helper `prepare_rescue` that chains three steps to swap a
 dedicated server into rescue mode with an SSH key injected:
 

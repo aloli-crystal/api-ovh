@@ -31,7 +31,7 @@ taxonomie d'erreurs exposée par ce shard.
 
 === ADR-001 — Pure stdlib Crystal (Accepted)
 
-*Contexte.* Le shard vise une intégration dans crystal-beryl, qui est
+*Contexte.* Le shard vise une intégration dans beryl, qui est
 déjà en pure stdlib. Ajouter une dépendance (crest, halite…) démultiplierait
 la surface de maintenance.
 

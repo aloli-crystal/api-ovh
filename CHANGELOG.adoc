@@ -7,6 +7,20 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.4.2 (29 avril 2026)
+
+=== Modifié
+
+* **Repo GitHub renommé** `aloli-crystal/crystal-api-ovh` →
+  `aloli-crystal/api-ovh` (convention de nommage Aloli : les créations
+  originales abandonnent le préfixe `crystal-`). Les anciens liens
+  redirigent automatiquement.
+* Champ `name:` du `shard.yml` mis à jour de `ovh-api` à `api-ovh`
+  (alignement avec le nom du repo). Le module reste `OvhApi`
+  (sémantiquement plus naturel).
+* Nouveau fichier d'entrée shim `src/api-ovh.cr` (charge
+  `src/ovh_api.cr`) ; `require "ovh-api"` devient `require "api-ovh"`.
+
 == 0.2.4 (21 avril 2026)
 
 === Ajouté

@@ -1,4 +1,4 @@
-= ovh-api
+= api-ovh
 :toc: left
 :toc-title: Table des matières
 :toclevels: 3
@@ -11,18 +11,18 @@ installation et suivi de tâche, DNS inverse.
 
 [NOTE]
 ====
-*ovh-api* s'intègre dans l'écosystème Aloli aux côtés de
-https://github.com/aloli-crystal/crystal-beryl[crystal-beryl] (configuration FreeBSD agentless)
+*api-ovh* s'intègre dans l'écosystème Aloli aux côtés de
+https://github.com/aloli-crystal/beryl[beryl] (configuration FreeBSD agentless)
 et https://github.com/aloli-crystal/crystal-silex[crystal-silex] (writer FAT12 cloud-init).
 Zéro dépendance externe : uniquement `HTTP::Client`, `OpenSSL`, `JSON` de la stdlib Crystal.
 ====
 
-== Pourquoi ovh-api ?
+== Pourquoi api-ovh ?
 
 Les clients OVH officiels sont écrits en Python, Node, Go, PHP ou Java, mais pas en Crystal.
 Les wrappers Crystal existants sont abandonnés ou dépendent de shards HTTP tiers.
 
-ovh-api implémente la signature `X-Ovh-Signature` localement (SHA-1), s'appuie
+api-ovh implémente la signature `X-Ovh-Signature` localement (SHA-1), s'appuie
 exclusivement sur la stdlib et expose une API idiomatique Crystal, testable par
 injection de transport.
 
@@ -40,7 +40,7 @@ injection de transport.
 
 [cols="1,3"]
 |===
-| ovh-api fait | ovh-api ne fait pas (pour l'instant)
+| api-ovh fait | api-ovh ne fait pas (pour l'instant)
 
 | Clés SSH (`/me/sshKey`) : list, get, create, delete.
 | Gestion complète du compte (`/me/*`).
@@ -62,8 +62,8 @@ Dans votre `shard.yml` :
 [source,yaml]
 ----
 dependencies:
-  ovh-api:
-    github: aloli-crystal/crystal-ovh-api
+  api-ovh:
+    github: aloli-crystal/crystal-api-ovh
     version: ~> 0.2
 ----
 
@@ -73,7 +73,7 @@ Puis `shards install`.
 
 [source,crystal]
 ----
-require "ovh-api"
+require "api-ovh"
 
 client = OvhApi::Client.new(
   application_key:    ENV["OVH_APPLICATION_KEY"],
@@ -116,7 +116,7 @@ L'exemple complet est dans link:examples/provision_debian.cr[`examples/provision
 
 == Orchestration rescue OVH
 
-Depuis la v0.2.1, ovh-api expose les endpoints de netboot / reboot et un
+Depuis la v0.2.1, api-ovh expose les endpoints de netboot / reboot et un
 helper de haut niveau `prepare_rescue` qui enchaîne trois étapes pour
 basculer un serveur en mode rescue avec une clé SSH posée :
 
