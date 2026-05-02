@@ -284,10 +284,15 @@ module OvhApi
       @auth ||= Endpoints::Auth.new(self)
     end
 
+    def sms : Endpoints::Sms
+      @sms ||= Endpoints::Sms.new(self)
+    end
+
     @ssh_keys : Endpoints::SshKeys?
     @dedicated_servers : Endpoints::DedicatedServers?
     @ips : Endpoints::Ips?
     @domains : Endpoints::Domains?
     @auth : Endpoints::Auth?
+    @sms : Endpoints::Sms?
   end
 end

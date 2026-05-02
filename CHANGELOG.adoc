@@ -7,11 +7,32 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.5.0 (2 mai 2026)
+
+=== Ajouté
+
+* `client.sms` — nouvel endpoint pour piloter un service SMS OVH
+  pré-payé. Trois méthodes :
+  ** `services` — liste des `serviceName` accessibles à la consumer key
+     courante (utile pour valider la config au boot).
+  ** `service(name)` — métadonnées d'un service (`credits_left`, status,
+     `callback_url`). Sert à anticiper la rupture de crédit.
+  ** `send(service_name, receivers, message, sender:, no_stop_clause:,
+     priority:, validity_period:)` — envoi synchrone d'un SMS à une
+     liste de numéros E.164. Renvoie un `JobResult` qui distingue les
+     `valid_receivers` des `invalid_receivers` (numéro mal formé ou
+     blacklisté).
+* Records publics : `Endpoints::ServiceInfo` et `Endpoints::JobResult`.
+* Pré-requis OVH : un pack SMS commandé (https://www.ovhtelecom.fr/sms/),
+  une consumer key avec scopes `GET /sms/*` + `POST /sms/*/jobs`
+  (URL pratique : https://eu.api.ovh.com/createToken/?GET=/sms/*&POST=/sms/*/jobs),
+  et un sender 3-11 alphanumériques validé par OVH.
+
 == 0.4.2 (29 avril 2026)
 
 === Modifié
 
-* **Repo GitHub renommé** `aloli-crystal/crystal-api-ovh` →
+* **Repo GitHub renommé** `aloli-crystal/api-ovh` →
   `aloli-crystal/api-ovh` (convention de nommage Aloli : les créations
   originales abandonnent le préfixe `crystal-`). Les anciens liens
   redirigent automatiquement.
