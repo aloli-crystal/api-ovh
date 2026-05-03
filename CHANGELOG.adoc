@@ -7,6 +7,33 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.6.0 (3 mai 2026)
+
+=== Ajouté
+
+* `client.raw_get`, `client.raw_post`, `client.raw_put`, `client.raw_delete` :
+  échappatoires génériques pour appeler n'importe quel endpoint OVH non
+  couvert par un module typé. Utiles en attendant la couverture des
+  sections IAM (`/me/api/credential`, `/me/identity`, `/me/accessRestriction`),
+  cryptographie (`/secret`, `/ssl`), inventaire (`/services`) ou audit
+  (`/me/api/logs/calls`).
++
+[source,crystal]
+----
+# Lister les consumer keys validées (A.5.17 — rotation des credentials)
+ids = client.raw_get("/me/api/credential",
+  query: {"status" => "validated"}).not_nil!.as_a.map(&.as_i)
+
+# Révoquer une CK compromise
+client.raw_delete("/me/api/credential/#{ids.first}")
+----
++
+Le caller récupère un `JSON::Any?` qu'il navigue lui-même : pas de
+typage, mais accès immédiat à tout endpoint v1 OVH. Préférer un module
+typé (`client.ssh_keys`, `client.dedicated_servers`…) quand il existe.
+* Specs couvrant les 4 méthodes : signature, sérialisation JSON
+  compacte du corps, encodage de la query, propagation des erreurs.
+
 == 0.5.0 (2 mai 2026)
 
 === Ajouté

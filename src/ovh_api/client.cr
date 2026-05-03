@@ -206,6 +206,29 @@ module OvhApi
       handle_response(status, response_body, method, path)
     end
 
+    # Échappatoires génériques — appellent un endpoint OVH non couvert
+    # par un module typé. Le caller navigue le `JSON::Any?` lui-même.
+    # Préférer `client.ssh_keys`, `client.dedicated_servers`, etc. quand
+    # un module typé existe : meilleure ergonomie et stabilité à la
+    # montée de version. `query` est encodé dans l'URL et entre dans la
+    # signature ; `body` est sérialisé en JSON compact.
+
+    def raw_get(path : String, query : Hash(String, String)? = nil) : JSON::Any?
+      call("GET", path, query: query)
+    end
+
+    def raw_post(path : String, body = nil) : JSON::Any?
+      call("POST", path, body: body)
+    end
+
+    def raw_put(path : String, body = nil) : JSON::Any?
+      call("PUT", path, body: body)
+    end
+
+    def raw_delete(path : String) : JSON::Any?
+      call("DELETE", path)
+    end
+
     private def build_url(path : String, query : Hash(String, String)?) : String
       full = @endpoint + (path.starts_with?("/") ? path : "/#{path}")
       if query && !query.empty?

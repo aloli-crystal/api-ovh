@@ -202,4 +202,77 @@ describe OvhApi::Client do
       exc.error_code.should eq("INTERNAL_ERROR")
     end
   end
+
+  describe "raw_*" do
+    it "raw_get délègue à call(GET) et signe correctement" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub("GET", /me\/api\/credential$/, status: 200, body: "[123,456]")
+
+      result = client.raw_get("/me/api/credential")
+
+      result.should_not be_nil
+      result.not_nil!.as_a.map(&.as_i).should eq([123, 456])
+
+      req = transport.requests.find! { |r| r.url.ends_with?("/me/api/credential") }
+      req.method.should eq("GET")
+      req.headers["X-Ovh-Signature"].should start_with("$1$")
+    end
+
+    it "raw_get encode la query dans l'URL" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub("GET", /credential\?status=validated/, status: 200, body: "[]")
+
+      client.raw_get("/me/api/credential", query: {"status" => "validated"})
+
+      req = transport.requests.find! { |r| r.url.includes?("credential") }
+      req.url.should contain("status=validated")
+    end
+
+    it "raw_post sérialise le corps en JSON compact" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub("POST", /secret/, status: 200, body: %({"id":42}))
+
+      client.raw_post("/secret/v1/secrets", body: {"name" => "foo", "value" => "bar"})
+
+      req = transport.requests.find! { |r| r.method == "POST" }
+      req.body.should eq(%({"name":"foo","value":"bar"}))
+      req.headers["X-Ovh-Signature"].should start_with("$1$")
+    end
+
+    it "raw_put accepte un body" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub("PUT", /me\/contact/, status: 200, body: "")
+
+      client.raw_put("/me/contact/42", body: {"phone" => "+33123456789"})
+
+      req = transport.requests.find! { |r| r.method == "PUT" }
+      req.body.should eq(%({"phone":"+33123456789"}))
+    end
+
+    it "raw_delete envoie un DELETE signé sans corps" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub("DELETE", /credential\/123/, status: 200, body: "")
+
+      client.raw_delete("/me/api/credential/123")
+
+      req = transport.requests.find! { |r| r.method == "DELETE" }
+      req.body.should eq("")
+      req.headers["X-Ovh-Signature"].should start_with("$1$")
+    end
+
+    it "remonte les exceptions de call (NotFound sur 404)" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub("GET", /missing/, status: 404, body: %({"message":"Not found"}))
+
+      expect_raises(OvhApi::NotFound, /404/) do
+        client.raw_get("/missing")
+      end
+    end
+  end
 end
