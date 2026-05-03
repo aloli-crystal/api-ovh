@@ -31,7 +31,7 @@ Security Advisory] on the repository. This keeps the report private
 between you and the maintainers and lets us coordinate a fix without
 disclosing the vulnerability publicly.
 
-*Fallback*: email `philippe@aloli.fr` with subject `[api-ovh][security]`.
+*Fallback*: email `rssi@aloli.fr` with subject `[api-ovh][security]`.
 PGP welcome but not required.
 
 Please *do not* open a public GitHub issue, PR or discussion for

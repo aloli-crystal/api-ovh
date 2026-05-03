@@ -31,7 +31,7 @@ Security Advisory] privé sur le dépôt. Le signalement reste privé
 entre vous et les mainteneurs et permet de coordonner un correctif
 sans divulgation publique anticipée.
 
-*Voie de repli* : email à `philippe@aloli.fr` avec le sujet
+*Voie de repli* : email à `rssi@aloli.fr` avec le sujet
 `[api-ovh][security]`. PGP bienvenu mais non requis.
 
 *Ne pas* ouvrir d'issue, de PR ou de discussion publique pour un
