@@ -1,0 +1,84 @@
+= Security Policy
+:toc: left
+:toc-title: Table of Contents
+:toclevels: 2
+
+This shard handles OVH credentials (application key/secret, consumer
+key) and the resulting `X-Ovh-Signature`. We treat any vulnerability
+that could expose those credentials, forge requests on behalf of
+another consumer key, or bypass OVH's authentication scheme as
+security-critical.
+
+== Supported versions
+
+Only the latest minor release on the `production` branch receives
+security fixes. Pre-1.0 the surface is still evolving — please track
+the latest tag.
+
+[cols="1,1"]
+|===
+| Version | Supported
+
+| 0.7.x   | yes
+| < 0.7   | no
+|===
+
+== Reporting a vulnerability
+
+*Preferred channel*: open a private
+https://github.com/aloli-crystal/api-ovh/security/advisories/new[GitHub
+Security Advisory] on the repository. This keeps the report private
+between you and the maintainers and lets us coordinate a fix without
+disclosing the vulnerability publicly.
+
+*Fallback*: email `philippe@aloli.fr` with subject `[api-ovh][security]`.
+PGP welcome but not required.
+
+Please *do not* open a public GitHub issue, PR or discussion for
+suspected security bugs. Public reports give attackers a head start on
+unpatched users.
+
+== What to include
+
+Help us triage faster:
+
+* Affected version (`shards list` output or commit hash).
+* Reproduction steps (smallest possible Crystal snippet, or a `curl`
+  command if the issue is in our HTTP layer).
+* Impact: confidentiality, integrity, availability — what does the
+  attacker gain?
+* Suggested fix (optional — we don't expect it, but it speeds things
+  up).
+* Whether you want public credit, anonymity, or attribution to a
+  pseudonym in the eventual advisory.
+
+== Out of scope
+
+* Vulnerabilities in OVH's API itself — report those to OVH directly
+  via https://www.ovhcloud.com/en/abuse/[ovhcloud.com/en/abuse/].
+* Issues in our test transport (`FakeTransport`) when used in
+  production — it is documented as a test double, not a security
+  boundary.
+* DoS by a malicious local caller — we trust the calling Crystal
+  process by design (it already holds the OVH secrets).
+
+== Disclosure timeline
+
+We aim for:
+
+* *48 hours* — acknowledge receipt of your report.
+* *7 days* — triage and confirm whether it's a vulnerability, a bug,
+  or out of scope.
+* *30 days* — release a patched version (and an advisory) if confirmed.
+
+For severe issues (credential leak, signature bypass) we will move
+faster. For complex multi-party fixes we may ask for a longer embargo
+and will keep you informed.
+
+== After the fix
+
+* The advisory is published on GitHub with a CVE if one is assigned.
+* The CHANGELOG entry references the advisory ID.
+* Reporters are credited (with consent) in the advisory.
+
+Thanks for helping keep api-ovh users safe.

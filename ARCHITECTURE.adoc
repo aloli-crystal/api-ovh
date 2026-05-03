@@ -1,4 +1,4 @@
-= ovh-api — Architecture
+= api-ovh — Architecture
 :toc: left
 :toc-title: Table des matières
 :toclevels: 3
@@ -12,7 +12,7 @@ taxonomie d'erreurs exposée par ce shard.
 
 [cols="1,3"]
 |===
-| ovh-api fait | ovh-api ne fait pas
+| api-ovh fait | api-ovh ne fait pas
 
 | Calcul local de la signature `X-Ovh-Signature`.
 | OAuth 2.0 applicatif (pas supporté par l'API v1).
@@ -35,7 +35,7 @@ taxonomie d'erreurs exposée par ce shard.
 déjà en pure stdlib. Ajouter une dépendance (crest, halite…) démultiplierait
 la surface de maintenance.
 
-*Décision.* ovh-api n'utilise que `HTTP::Client`, `OpenSSL`/`Digest::SHA1`,
+*Décision.* api-ovh n'utilise que `HTTP::Client`, `OpenSSL`/`Digest::SHA1`,
 `JSON` et `URI` de la stdlib. Aucun `dependencies:` dans `shard.yml`.
 
 *Conséquences.* Pas de `WebMock` non plus : les tests utilisent un
@@ -73,7 +73,7 @@ Voir `spec/ovh_api/client_spec.cr`.
 l'heure serveur. Si l'horloge locale dérive, toutes les requêtes sont
 rejetées avec `INVALID_SIGNATURE`.
 
-*Décision.* À la première requête signée, ovh-api interroge `/1.0/auth/time`
+*Décision.* À la première requête signée, api-ovh interroge `/1.0/auth/time`
 (endpoint non signé) et calcule `delta = time_ovh - time_local`. Les appels
 suivants utilisent `Time.utc.to_unix + delta` sans nouvel aller-retour.
 
@@ -138,7 +138,10 @@ serveur rejeté par `reinstall`.
 
 * Licence : *MIT*, conforme à la convention des shards Aloli.
 * Organisation GitHub : https://github.com/aloli-crystal[aloli-crystal].
-* Nom du dépôt : `crystal-ovh-api`, nom du shard : `ovh-api`.
+* Nom du dépôt : `api-ovh`, nom du shard : `api-ovh` (rename de
+  `crystal-ovh-api` → `crystal-api-ovh` → `api-ovh` documenté en
+  CHANGELOG 0.4.2 — convention Aloli post-rename : créations sans
+  préfixe `crystal-`).
 * Branche par défaut : `production` (convention Aloli).
 * Langue des messages de commit : français.
 
@@ -202,26 +205,87 @@ ne pilotent que l'alim.
 
 == Feuille de route
 
-=== v0.2 (livré 20 avril 2026)
+=== Livré
 
-* Endpoints boot/reboot couverts : `boots`, `boot`, `set_boot` (avec
-  paramètres optionnels `rescue_ssh_key` et `rescue_mail` en v0.2.1),
-  `reboot`.
-* Helper `prepare_rescue(service_name, ssh_key_name)` — une seule
-  requête PUT combinant `bootId` et `rescueSshKey` (correction v0.2.1 :
-  l'endpoint `/netbootOption` supposé dans la v0.2 initiale n'existe
-  pas côté OVH).
+[cols="1,3"]
+|===
+| Version | Apport principal
 
-=== v0.3 (envisagé)
+| 0.2.x (avril 2026)
+| Endpoints boot/reboot (`boots`, `boot`, `set_boot` avec
+  `rescue_ssh_key`/`rescue_mail`, `reboot`) et helper
+  `prepare_rescue` — une seule requête PUT combinant `bootId` et
+  `rescueSshKey`. `boot_from_disk` en 0.2.4. `Boot#linux_rescue?`
+  pour distinguer un rescue Debian d'un `ipxe-shell`.
 
-* `/order/cart` : commander un nouveau serveur depuis zéro.
-* Fallback `install/start` pour les serveurs legacy.
-* Helper `#wait_for_task(service_name, task_id, interval:)` synchrone.
-* Support `?extras` sur `/dedicated/installationTemplate` (partitions
-  personnalisées).
+| 0.3.x (avril 2026)
+| `DedicatedServers#update` via `PUT /services/{serviceId}` (displayName,
+  expiration). DNS zones (`/domain/zone/*/record` — list, get, create,
+  update, delete, refresh).
 
-=== v1.0 (non engagé)
+| 0.4.x (avril 2026)
+| `Endpoints::Auth#request_consumer_key` (génération automatique),
+  `current_credential` et `days_until_expiration` (audit / monitoring
+  côté caller). Repo renommé `crystal-api-ovh` → `api-ovh` (convention
+  Aloli post-rename).
 
-* Couverture des endpoints VPS, cloud public, load balancer.
-* Streaming de logs d'installation (`/dedicated/server/*/installLog`).
-* Support WebSocket de la documentation dynamique OVH.
+| 0.5.x (mai 2026)
+| `Endpoints::Sms` (services, service, send) — pré-requis : pack SMS
+  OVHcloud, sender 3-11 alphanumériques validé.
+
+| 0.6.x (mai 2026)
+| `client.raw_get`/`raw_post`/`raw_put`/`raw_delete` — échappatoire
+  signée vers n'importe quel endpoint v1 OVH non couvert par un
+  module typé. Débloque immédiatement `/me/api/credential`,
+  `/me/identity`, `/me/accessRestriction`, `/secret`, `/ssl`,
+  `/services`, `/cloud/*`, etc.
+
+| 0.7.x (mai 2026)
+| `DedicatedServers#wait_for_task` synchrone (avec bloc optionnel pour
+  tracer chaque poll). Nouvelle exception `OvhApi::TaskTimeout` qui
+  porte la dernière `Task` observée. `FakeTransport#stub_sequence`
+  côté specs pour tester les scénarios à plusieurs polls.
+|===
+
+=== Envisagé (pas d'engagement de date)
+
+==== Modules typés candidats
+
+Critère : un endpoint est candidat à un module typé si (a) il est
+fréquemment utilisé dans les workflows Aloli, (b) son schéma est
+stable côté OVH, (c) la valeur ajoutée du typage justifie le coût de
+maintenance face aux évolutions de schéma. Sinon, `raw_*` reste la
+voie recommandée.
+
+* `client.me.credentials` — listing, expiration, révocation des
+  consumer keys. Pertinent ISO 27001 A.5.17 (rotation des credentials).
+* `client.me.api_logs` — extraction du journal d'appels API. Pertinent
+  ISO 27001 A.8.15/A.8.16 (logging + monitoring).
+* `client.me.identity` — IAM OVH (utilisateurs, groupes, rôles).
+  Pertinent ISO 27001 A.5.15/A.5.16.
+* `client.me.access_restriction` — IP allow-list, MFA TOTP/U2F.
+  Pertinent ISO 27001 A.8.5.
+* `client.secret` — OVH KMS (clés chiffrées). Pertinent ISO 27001 A.8.24.
+* `client.ssl` — certificats X.509. Pertinent ISO 27001 A.8.24.
+* `client.services` — inventaire global des actifs OVH attribués.
+  Pertinent ISO 27001 A.5.9.
+
+==== Améliorations transverses
+
+* `/order/cart` — commander un nouveau serveur depuis zéro.
+* Fallback `install/start` pour les serveurs dédiés legacy non
+  supportés par `/reinstall`.
+* Backoff automatique configurable sur 429 (`retry: true` / `retry: 3`
+  sur `call`), respectant `retry_after`.
+* Support `?extras` sur `/dedicated/installationTemplate` pour les
+  partitions personnalisées.
+
+=== Hors-périmètre durable
+
+* OAuth 2.0 applicatif — l'API v1 ne le supporte pas, le schéma
+  API Keys + consumer key reste la voie officielle.
+* Streaming WebSocket / Server-Sent Events — l'API v1 OVH n'expose
+  pas de canal temps réel ; le polling reste la norme.
+* Async-first (`HTTP::Client` non-bloquant via fibers seulement) — le
+  `Client` actuel est bloquant. Concurrence côté appelant via
+  `spawn` / `Channel`.

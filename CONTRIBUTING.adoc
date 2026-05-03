@@ -1,0 +1,114 @@
+= Contributing to api-ovh
+:toc: left
+:toc-title: Table of Contents
+:toclevels: 2
+
+Thanks for considering a contribution. This document captures the
+working conventions of the project so your patch lands on the first
+try.
+
+== Project conventions
+
+[cols="1,3"]
+|===
+| Topic | Convention
+
+| Default branch
+| `production` (not `main` or `master`). PRs target `production`.
+
+| Crystal version
+| `>= 1.19.1` (pinned in `shard.yml`). Newer versions welcome but CI
+  pins 1.19.1 as the floor.
+
+| Dependencies
+| *Pure stdlib only* at runtime. `ameba` is the only dev dependency.
+  See ADR-001 in `ARCHITECTURE.adoc` — adding a runtime dependency
+  needs an ADR change, not just a PR.
+
+| Versioning
+| https://semver.org[SemVer] with three digits (`0.X.Y`). New typed
+  module = minor bump. Bug fix = patch bump.
+
+| Commit messages
+| In *French*. Convention : a one-line summary starting with the
+  version (`0.7.1 : …`) for release commits, otherwise a verb in the
+  imperative. Body explains the *why* — the diff already shows the *what*.
+
+| Co-authoring trailer
+| *Do not* add `Co-Authored-By` lines.
+
+| Code style
+| `crystal tool format src/ spec/` must pass without changes. CI
+  enforces this with `crystal tool format --check`.
+
+| Lint
+| `bin/ameba` must pass. CI fails on warnings.
+
+| Tests
+| Every public method needs at least one spec exercising it through
+  `FakeTransport`. No live network calls in specs. New error cases
+  (HTTP 4xx/5xx, malformed JSON) need a regression spec.
+
+| Documentation
+| Doc-string the new public method (Crystal docs format). Update
+  `README.adoc` and `README.fr.adoc` symmetrically if the change is
+  user-facing. Add a `CHANGELOG.adoc` entry.
+
+| Bilingual docs
+| README, SECURITY, CONTRIBUTING and the ADRs must stay symmetric
+  between EN and FR. If you only speak one of the two, submit the PR
+  anyway with a note — a maintainer will translate.
+|===
+
+== Getting started
+
+[source,sh]
+----
+git clone https://github.com/aloli-crystal/api-ovh
+cd api-ovh
+shards install
+crystal spec                          # 89 examples, 0 failures
+bin/ameba                             # 22 inspected, 0 failures
+crystal tool format --check src/ spec/
+----
+
+== Running the example against the real OVH API
+
+The default specs use `FakeTransport`. To exercise the real API:
+
+[source,sh]
+----
+export OVH_APPLICATION_KEY=...
+export OVH_APPLICATION_SECRET=...
+export OVH_CONSUMER_KEY=...
+crystal run examples/provision_debian.cr
+----
+
+Without `OVH_CONFIRM=yes`, the example only lists keys, servers and
+templates — it does *not* trigger an actual reinstall. Always run
+without `OVH_CONFIRM` first to validate your credentials.
+
+== Pull request checklist
+
+Before opening a PR:
+
+* [ ] `crystal tool format src/ spec/` is clean.
+* [ ] `crystal spec` passes.
+* [ ] `bin/ameba` passes.
+* [ ] New public methods have specs *and* doc-strings.
+* [ ] `CHANGELOG.adoc` has an entry under the next version.
+* [ ] `README.adoc` and `README.fr.adoc` are symmetric.
+* [ ] Commit messages in French, no `Co-Authored-By` trailer.
+* [ ] No runtime dependency added (or an ADR update if there is).
+
+== Reporting bugs and security issues
+
+* *Bugs* — open a https://github.com/aloli-crystal/api-ovh/issues[GitHub
+  issue] with reproduction steps and Crystal version.
+* *Security* — see link:SECURITY.adoc[SECURITY.adoc]. *Do not* open a
+  public issue for security vulnerabilities.
+
+== License
+
+By contributing you agree that your contributions will be licensed
+under the link:LICENSE[MIT License] of the project.

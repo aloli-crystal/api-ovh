@@ -4,6 +4,9 @@
 /tmp/
 *.dwarf
 
+# Doc API générée par `crystal docs` (publiée par la CI sur GitHub Pages)
+/docs/
+
 # Fichiers de credentials OVH (ne jamais versionner)
 /credentials.yml
 /credentials.local.yml

@@ -7,6 +7,54 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.7.1 (3 mai 2026)
+
+=== Documentation
+
+* `ARCHITECTURE.adoc` — refonte de la section « Feuille de route ».
+  Tableau « Livré » couvrant v0.2 → v0.7 avec apport principal de
+  chaque release (la version précédente s'arrêtait à v0.2 livré et v0.3
+  envisagé). Section « Envisagé » réorganisée en deux blocs : modules
+  typés candidats (avec mapping ISO 27001) et améliorations
+  transverses. Section « Hors-périmètre durable » ajoutée (OAuth 2.0,
+  WebSocket, async-first).
+* `ARCHITECTURE.adoc` — titre `ovh-api` → `api-ovh`, mention du
+  rename de dépôt dans ADR-007.
+* `SECURITY.adoc` + `SECURITY.fr.adoc` — politique de sécurité
+  bilingue : versions supportées, voie de signalement (GitHub Security
+  Advisories en priorité, email en repli), délais de triage et de
+  divulgation. Pertinent ISO 27001 A.5.7.
+* `CONTRIBUTING.adoc` + `CONTRIBUTING.fr.adoc` — conventions du projet
+  bilingues : branche par défaut `production`, commits français sans
+  trailer `Co-Authored-By`, stdlib uniquement (ADR-001), tests via
+  `FakeTransport`, doc bilingue obligatoire pour les changements
+  user-facing.
+
+=== Intégration continue
+
+* Nouveau job `build-docs` qui génère `crystal docs` et l'empaquette
+  comme artefact GitHub Pages.
+* Nouveau job `deploy-docs` qui publie la doc API sur GitHub Pages
+  uniquement sur push vers `production` (pas sur les PR — éviterait
+  d'exposer une doc d'une branche en cours de revue).
+* Garde-fou sur la génération : `test -f docs/index.html` après
+  `crystal docs` pour échouer franchement si la commande devient
+  silencieusement no-op.
+* `concurrency` : un seul run CI par branche, on annule les
+  précédents.
+* Permissions globales restreintes à `contents: read` ; le job de
+  déploiement élargit localement vers `pages: write` + `id-token: write`
+  (principe du moindre privilège).
+* `.gitignore` : ajout de `/docs/` (généré par `crystal docs`, publié
+  par la CI, pas versionné).
+
+=== Note d'activation
+
+La publication des docs sur GitHub Pages requiert *une opération
+manuelle unique* dans les Settings du dépôt :
+*Settings → Pages → Build and deployment → Source : GitHub Actions*.
+Sans ça, le job `deploy-docs` échouera avec un message explicite.
+
 == 0.7.0 (3 mai 2026)
 
 === Ajouté

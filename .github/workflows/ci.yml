@@ -6,6 +6,18 @@ on:
   pull_request:
     branches: [production, development]
 
+# Concurrency : un seul run par branche, on annule les précédents en
+# cours pour éviter d'empiler des déploiements de docs périmés.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Permissions globales minimales (lecture du repo). Le job `deploy-docs`
+# élargit localement vers `pages: write` + `id-token: write` qui sont
+# requis par actions/deploy-pages.
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint (format + ameba)
@@ -51,3 +63,39 @@ jobs:
             shards install
             crystal spec
             mkdir -p bin && crystal build examples/provision_debian.cr -o bin/provision_debian
+
+  build-docs:
+    name: Build API docs (crystal docs)
+    runs-on: ubuntu-latest
+    container:
+      image: crystallang/crystal:1.19.1
+    needs: [lint, spec-linux]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installe les shards
+        run: shards install
+      - name: Génère la doc API
+        run: crystal docs
+      - name: Garde-fou (la doc doit avoir été générée)
+        run: test -f docs/index.html
+      - name: Empaquette l'artefact Pages
+        if: github.ref == 'refs/heads/production'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy-docs:
+    name: Deploy docs to GitHub Pages
+    if: github.ref == 'refs/heads/production'
+    needs: build-docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Déploie sur Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

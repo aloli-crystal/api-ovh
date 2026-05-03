@@ -1,0 +1,86 @@
+= Politique de sécurité
+:toc: left
+:toc-title: Table des matières
+:toclevels: 2
+
+Ce shard manipule des credentials OVH (application key/secret,
+consumer key) et la signature `X-Ovh-Signature` qui en découle. Toute
+vulnérabilité qui exposerait ces credentials, permettrait de forger
+des requêtes au nom d'un autre consumer key, ou contournerait le
+schéma d'authentification OVH est considérée comme critique.
+
+== Versions supportées
+
+Seule la dernière version mineure sur la branche `production` reçoit
+les correctifs de sécurité. En pré-1.0 la surface évolue encore — il
+faut suivre le dernier tag.
+
+[cols="1,1"]
+|===
+| Version | Supportée
+
+| 0.7.x   | oui
+| < 0.7   | non
+|===
+
+== Signaler une vulnérabilité
+
+*Voie préférée* : ouvrir un
+https://github.com/aloli-crystal/api-ovh/security/advisories/new[GitHub
+Security Advisory] privé sur le dépôt. Le signalement reste privé
+entre vous et les mainteneurs et permet de coordonner un correctif
+sans divulgation publique anticipée.
+
+*Voie de repli* : email à `philippe@aloli.fr` avec le sujet
+`[api-ovh][security]`. PGP bienvenu mais non requis.
+
+*Ne pas* ouvrir d'issue, de PR ou de discussion publique pour un
+soupçon de bug de sécurité — un signalement public donne aux
+attaquants une longueur d'avance sur les utilisateurs non patchés.
+
+== Que mettre dans le signalement
+
+Pour accélérer le triage :
+
+* Version affectée (sortie de `shards list` ou hash du commit).
+* Étapes de reproduction (le plus petit snippet Crystal possible, ou
+  une commande `curl` si la faille est dans la couche HTTP).
+* Impact : confidentialité, intégrité, disponibilité — que gagne
+  l'attaquant ?
+* Correctif suggéré (optionnel — pas attendu, mais ça aide).
+* Souhait de crédit public, anonymat, ou attribution à un
+  pseudonyme dans l'éventuel advisory.
+
+== Hors-périmètre
+
+* Vulnérabilités dans l'API OVH elle-même — à signaler directement à
+  OVH via https://www.ovhcloud.com/fr/abuse/[ovhcloud.com/fr/abuse/].
+* Problèmes liés au transport de test (`FakeTransport`) utilisé en
+  production — il est documenté comme double de test, pas comme
+  frontière de sécurité.
+* DoS par un appelant local malveillant — par construction nous
+  faisons confiance au process Crystal qui appelle (il détient déjà
+  les secrets OVH).
+
+== Délais de divulgation
+
+Engagements visés :
+
+* *48 heures* — accusé de réception du signalement.
+* *7 jours* — triage et confirmation : vulnérabilité, bug ordinaire,
+  ou hors-périmètre.
+* *30 jours* — publication d'une version corrigée (et d'un advisory)
+  si la faille est confirmée.
+
+Pour les cas graves (fuite de credentials, contournement de
+signature) nous accélérons. Pour des correctifs multi-acteurs
+complexes nous pouvons demander un embargo plus long et vous tenir
+informé.
+
+== Après la correction
+
+* L'advisory est publié sur GitHub avec un CVE si attribué.
+* L'entrée CHANGELOG référence l'ID de l'advisory.
+* Les rapporteurs sont crédités (avec leur accord) dans l'advisory.
+
+Merci d'aider à garder les utilisateurs d'api-ovh en sécurité.
