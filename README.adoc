@@ -13,7 +13,7 @@ task polling, reverse DNS.
 ====
 *api-ovh* is a sister project in the Aloli Crystal ecosystem alongside
 https://github.com/aloli-crystal/beryl[beryl] (agentless FreeBSD
-configuration) and https://github.com/aloli-crystal/crystal-silex[crystal-silex]
+configuration) and https://github.com/aloli-crystal/silex[silex]
 (pure-Crystal FAT12 / cloud-init NoCloud writer). Zero external dependencies: only
 `HTTP::Client`, `OpenSSL`, `JSON` from the Crystal stdlib.
 ====
@@ -64,7 +64,7 @@ In your `shard.yml`:
 ----
 dependencies:
   api-ovh:
-    github: aloli-crystal/crystal-api-ovh
+    github: aloli-crystal/api-ovh
     version: ~> 0.2
 ----
 

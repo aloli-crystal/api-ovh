@@ -13,7 +13,7 @@ installation et suivi de tâche, DNS inverse.
 ====
 *api-ovh* s'intègre dans l'écosystème Aloli aux côtés de
 https://github.com/aloli-crystal/beryl[beryl] (configuration FreeBSD agentless)
-et https://github.com/aloli-crystal/crystal-silex[crystal-silex] (writer FAT12 cloud-init).
+et https://github.com/aloli-crystal/silex[silex] (writer FAT12 cloud-init).
 Zéro dépendance externe : uniquement `HTTP::Client`, `OpenSSL`, `JSON` de la stdlib Crystal.
 ====
 
@@ -63,7 +63,7 @@ Dans votre `shard.yml` :
 ----
 dependencies:
   api-ovh:
-    github: aloli-crystal/crystal-api-ovh
+    github: aloli-crystal/api-ovh
     version: ~> 0.2
 ----
 
