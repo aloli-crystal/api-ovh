@@ -18,6 +18,15 @@ concurrency:
 permissions:
   contents: read
 
+# Force les actions JavaScript (checkout, upload-pages-artifact,
+# deploy-pages, cross-platform-actions) à tourner sur Node.js 24 dès
+# maintenant, sans attendre que GitHub bascule le défaut le 2 juin 2026.
+# Évite les annotations « Node.js 20 actions are deprecated » sur les
+# runs et anticipe la migration ; à retirer une fois que les actions
+# auront publié des @v5 taguées Node 24-only.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   lint:
     name: Lint (format + ameba)
