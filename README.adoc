@@ -6,8 +6,10 @@
 :icons: font
 
 Pure-Crystal client (stdlib only) for the https://api.ovh.com/console/[OVHcloud v1 API].
-Covers the endpoints needed to provision dedicated servers: SSH keys, install +
-task polling, reverse DNS.
+Typed modules for the day-to-day operator scope (SSH keys, dedicated servers
++ install + rescue, reverse DNS, DNS zones, SMS) on top of a signed
+generic transport (`raw_get`/`raw_post`/`raw_put`/`raw_delete`) that
+reaches *any* v1 endpoint.
 
 [NOTE]
 ====
@@ -33,27 +35,42 @@ transport.
 * *OVH signature*: local `$1$ + SHA1(secret+ck+method+url+body+timestamp)`.
 * *Clock offset*: `/auth/time` queried once and cached for the process lifetime.
 * *Multi-endpoint routing*: `:eu` (default), `:ca`, `:us`, Kimsufi, SoYouStart.
+* *Typed modules*: `ssh_keys`, `dedicated_servers` (list / info / reinstall /
+  tasks / boot+rescue / `wait_for_task`), `ips` (reverse DNS),
+  `domains` (DNS zones), `sms`, `auth` (consumer key request, current
+  credential, days until expiration).
+* *Raw escape hatch*: `client.raw_get`, `raw_post`, `raw_put`, `raw_delete`
+  reach any uncovered endpoint (`/me/api/credential`, `/me/identity`,
+  `/secret`, `/ssl`, `/cloud`, `/services`, …) with the same signature
+  and error handling.
 * *Injectable transport*: abstract `HttpTransport`, trivial stub for specs.
 * *Error taxonomy*: `AuthenticationError`, `NotFound`, `RateLimited`,
-  `ApiError` (exposes `errorCode` + `http_status`).
+  `ApiError` (exposes `errorCode` + `http_status`), `TaskTimeout` (with
+  the last observed `Task`).
 
 == Scope
 
 [cols="1,3"]
 |===
-| api-ovh does | api-ovh does not (yet)
+| Layer | Coverage
 
-| SSH keys (`/me/sshKey`): list, get, create, delete.
-| Full account management (`/me/*`).
+| Typed modules
+| SSH keys (`/me/sshKey`), dedicated servers (`/dedicated/server` —
+  list, info, reinstall, tasks, `wait_for_task`, boot, rescue, reboot,
+  `boot_from_disk`, displayName), reverse DNS (`/ip/{ip}/reverse`),
+  DNS zones (`/domain/zone/*/record`), SMS (`/sms` — services + send),
+  auth helpers (`/auth/credential`, `/auth/time`, consumer-key request).
 
-| Dedicated servers: list, info, reinstall, tasks, boot/netboot/reboot, `prepare_rescue`.
-| Ordering (`/order/cart`) — planned for v0.3.
+| Raw access (`raw_*`)
+| Every other v1 endpoint reachable via a signed call returning
+  `JSON::Any?`. Examples: `/me/api/credential` (rotate consumer keys),
+  `/me/identity/{user,group}` (IAM), `/me/accessRestriction` (MFA / IP
+  allow-list), `/secret` (KMS), `/ssl` (certs), `/services` (asset
+  inventory), `/cloud/*`, `/order/cart`, `/dbaas/logs`.
 
-| Reverse DNS (`/ip/{ip}/reverse`): list, get, set, delete.
-| VPS, public cloud, CDN, web hosting.
-
-| Full signing, clock sync, 401/403/404/429 handling.
-| OAuth 2.0 app flow (API Keys remain OVH's official scheme).
+| Out of scope
+| OAuth 2.0 app flow (the API-Keys + consumer-key scheme remains OVH's
+  official path on v1).
 |===
 
 == Installation
@@ -65,7 +82,7 @@ In your `shard.yml`:
 dependencies:
   api-ovh:
     github: aloli-crystal/api-ovh
-    version: ~> 0.2
+    version: ~> 0.7
 ----
 
 Then `shards install`.
@@ -99,15 +116,14 @@ task = client.dedicated_servers.reinstall(
   ssh_key_name: "laptop",
 )
 
-# Poll
-loop do
-  status = client.dedicated_servers.task(
-    service_name: "ns1.ip-1-2-3.eu",
-    task_id:      task.id,
-  )
-  break if status.done?
-  sleep 30.seconds
-end
+# Poll until done (raises TaskTimeout if budget exceeded)
+final = client.dedicated_servers.wait_for_task(
+  service_name: "ns1.ip-1-2-3.eu",
+  task_id:      task.id,
+  interval:     30.seconds,
+  timeout:      1.hour,
+)
+raise "install failed: #{final.comment}" if final.failed?
 
 # Reverse DNS
 client.ips.set_reverse(ip: "192.0.2.10", reverse: "web01.aloli.fr.")
@@ -139,19 +155,46 @@ task = client.dedicated_servers.prepare_rescue(
 )
 puts "Rescue task #{task.id} (#{task.status})"
 
-loop do
-  task = client.dedicated_servers.task(
-    service_name: "ns1.ip-1-2-3.eu",
-    task_id: task.id,
-  )
-  break if task.done?
-  sleep 15.seconds
-end
+client.dedicated_servers.wait_for_task(
+  service_name: "ns1.ip-1-2-3.eu",
+  task_id:      task.id,
+  interval:     15.seconds,
+)
 ----
 
 The underlying calls are exposed individually as well (`boots`, `boot`,
-`set_boot` (avec `rescue_ssh_key` optionnel), `reboot`) if you need a different
+`set_boot` (with optional `rescue_ssh_key`), `reboot`) if you need a different
 orchestrator (e.g. switching to `ipxeCustomerScript`).
+
+== Raw API access (escape hatch)
+
+Anything outside the typed modules is reachable via the four signed
+helpers below. Caller navigates the resulting `JSON::Any?` directly.
+Same signing, same error taxonomy, same multi-endpoint routing.
+
+[source,crystal]
+----
+# A.5.17 (ISO 27001) — list active consumer keys for rotation
+ids = client.raw_get("/me/api/credential",
+  query: {"status" => "validated"}).not_nil!.as_a.map(&.as_i)
+
+# A.5.17 — revoke a compromised consumer key
+client.raw_delete("/me/api/credential/#{ids.first}")
+
+# A.8.16 — full asset inventory
+services = client.raw_get("/services").not_nil!.as_a
+
+# A.8.24 — listing SSL certificates
+certs = client.raw_get("/ssl").not_nil!.as_a
+
+# Custom POST with a JSON body
+client.raw_post("/secret/v1/secrets",
+  body: {"name" => "db-password", "value" => "s3cr3t"})
+----
+
+Prefer a typed module (`client.ssh_keys`, `client.dedicated_servers`,
+…) when one exists: better ergonomics and stable typing across OVH
+schema changes. Use `raw_*` for the long tail.
 
 == Getting OVH credentials
 
@@ -181,6 +224,13 @@ POST /dedicated/server/*/reboot
 . Validate the URL returned by OVH (SMS or OVH password manager). The consumer
   key becomes active.
 
+[TIP]
+====
+Step 2 can be automated end-to-end with `client.auth.request_consumer_key`,
+which submits the access rules and returns the validation URL alongside
+the new consumer key. See the `Endpoints::Auth` module for details.
+====
+
 == Running against the real API
 
 Specs use a `FakeTransport` (stdlib-only) with no network calls. For an
@@ -199,7 +249,10 @@ it just lists keys, servers and templates.
 
 == Status
 
-Early stage (v0.2 — provisioning + rescue mode covered).
+v0.7 — typed modules stable for the operator scope (provisioning,
+rescue, reverse DNS, DNS zones, SMS, auth) ; everything else reachable
+via `raw_*`. Signing, clock sync and error handling are battle-tested
+on real OVH infrastructure.
 
 * link:ARCHITECTURE.adoc[ARCHITECTURE.adoc] — signing, routing, error taxonomy.
 * link:CHANGELOG.adoc[CHANGELOG.adoc] — changelog.

@@ -34,4 +34,16 @@ module OvhApi
       super(message)
     end
   end
+
+  # Une opération de polling (ex. `wait_for_task`) a dépassé son budget
+  # temps avant que la tâche n'atteigne un état terminal. La dernière
+  # `Task` observée est exposée via `#last_task` pour permettre à
+  # l'appelant de la re-poller ou d'agir.
+  class TaskTimeout < Error
+    getter last_task : Endpoints::Task
+
+    def initialize(message : String, @last_task : Endpoints::Task)
+      super(message)
+    end
+  end
 end

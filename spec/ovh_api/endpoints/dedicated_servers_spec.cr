@@ -564,4 +564,97 @@ describe OvhApi::Endpoints::DedicatedServers do
       end
     end
   end
+
+  describe "#wait_for_task" do
+    it "polle jusqu'à done? puis retourne la Task finale" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub_sequence(
+        "GET",
+        /task\/42$/,
+        [
+          {200, %({"taskId":42,"function":"reinstallServer","status":"todo"})},
+          {200, %({"taskId":42,"function":"reinstallServer","status":"doing"})},
+          {200, %({"taskId":42,"function":"reinstallServer","status":"done","doneDate":"2026-05-03T10:00:00+02:00"})},
+        ]
+      )
+
+      final = client.dedicated_servers.wait_for_task(
+        service_name: "ns1.ip-1-2-3.eu",
+        task_id: 42,
+        interval: 0.seconds,
+        timeout: 30.seconds,
+      )
+
+      final.success?.should be_true
+      final.status.should eq("done")
+      transport.requests.count { |r| r.url.includes?("/task/42") }.should eq(3)
+    end
+
+    it "lève TaskTimeout si la tâche n'atteint pas l'état terminal" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "GET",
+        /task\/99$/,
+        status: 200,
+        body: %({"taskId":99,"function":"hardReboot","status":"doing"}),
+      )
+
+      exc = expect_raises(OvhApi::TaskTimeout, /99/) do
+        client.dedicated_servers.wait_for_task(
+          service_name: "ns1.ip-1-2-3.eu",
+          task_id: 99,
+          interval: 0.seconds,
+          timeout: 0.seconds,
+        )
+      end
+
+      exc.last_task.id.should eq(99)
+      exc.last_task.status.should eq("doing")
+    end
+
+    it "yield la Task à chaque tour pour permettre de logger" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub_sequence(
+        "GET",
+        /task\/7$/,
+        [
+          {200, %({"taskId":7,"function":"hardReboot","status":"doing"})},
+          {200, %({"taskId":7,"function":"hardReboot","status":"done"})},
+        ]
+      )
+
+      seen = [] of String
+      client.dedicated_servers.wait_for_task(
+        service_name: "ns1.ip-1-2-3.eu",
+        task_id: 7,
+        interval: 0.seconds,
+      ) { |t| seen << t.status }
+
+      seen.should eq(["doing", "done"])
+    end
+
+    it "remonte un échec OVH (failed?) sans lever, à charge de l'appelant" do
+      transport = FakeTransport.new
+      client = build_client(transport)
+      transport.stub(
+        "GET",
+        /task\/13$/,
+        status: 200,
+        body: %({"taskId":13,"function":"reinstallServer","status":"customerError","comment":"bad SSH key"}),
+      )
+
+      final = client.dedicated_servers.wait_for_task(
+        service_name: "ns1.ip-1-2-3.eu",
+        task_id: 13,
+        interval: 0.seconds,
+      )
+
+      final.done?.should be_true
+      final.failed?.should be_true
+      final.comment.should eq("bad SSH key")
+    end
+  end
 end

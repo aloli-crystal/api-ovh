@@ -7,6 +7,63 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog]
 et ce projet suit https://semver.org/lang/fr/[Semantic Versioning].
 
+== 0.7.0 (3 mai 2026)
+
+=== Ajouté
+
+* `client.dedicated_servers.wait_for_task(service_name, task_id,
+  interval:, timeout:)` : helper synchrone qui polle la tâche jusqu'à
+  un état terminal (`done?`) et retourne la `Task` finale. Remplace
+  les `loop do … sleep` à recopier côté appelants.
++
+[source,crystal]
+----
+final = client.dedicated_servers.wait_for_task(
+  service_name: "ns1.ip-1-2-3.eu",
+  task_id:      task.id,
+  interval:     30.seconds,
+  timeout:      1.hour,
+) { |t| Log.info { "Task #{t.id} : #{t.status}" } }
+raise "install KO : #{final.comment}" if final.failed?
+----
++
+Le bloc `do |task| … end` est optionnel et permet de tracer chaque
+poll (logs structurés, télémétrie). Lève `OvhApi::TaskTimeout` si la
+tâche reste non-terminale au-delà du `timeout` ; l'exception porte
+`#last_task` pour permettre à l'appelant de re-poller ou d'agir.
+* `OvhApi::TaskTimeout < OvhApi::Error` : nouvelle exception, expose
+  la dernière `Task` observée via `#last_task`.
+* `FakeTransport#stub_sequence` côté specs : permet de tester
+  facilement les scénarios à plusieurs polls (chaque appel renvoie la
+  réponse suivante de la séquence, le dernier élément reste collant).
+
+=== Documentation
+
+* README.adoc / README.fr.adoc remis à jour pour refléter le périmètre
+  réel après les v0.4 / v0.5 / v0.6 :
+  ** Phrase d'accroche : modules typés + `raw_*` au lieu d'un scope
+     limité au provisioning seul.
+  ** Tableau « Périmètre / Scope » réécrit en trois lignes (typés,
+     `raw_*`, hors-périmètre) au lieu d'une vision « fait / fait pas »
+     déjà périmée.
+  ** Nouvelle section « Accès brut à l'API / Raw API access » avec 5
+     exemples ISO 27001 (rotation CK, inventaire actifs, certificats SSL,
+     `secret`, POST arbitraire).
+  ** Quick start et exemple rescue : remplacement de `loop do … sleep`
+     par `wait_for_task`.
+  ** Note sur `client.auth.request_consumer_key` dans la section
+     « Obtenir des credentials OVH ».
+  ** Contrainte d'installation `~> 0.2` → `~> 0.7`.
+  ** Section « Statut » réécrite (v0.2 early stage → v0.7 stable sur
+     le périmètre typé).
+  ** Coquille FR « avec rescue_ssh_key optionnel » présente dans le
+     README EN traduite vers `with optional rescue_ssh_key`.
+
+=== Modifié
+
+* `wait_for_task` mesure le temps via `Time.instant` (au lieu de
+  `Time.monotonic` déprécié sur Crystal récent).
+
 == 0.6.0 (3 mai 2026)
 
 === Ajouté

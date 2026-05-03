@@ -173,6 +173,57 @@ module OvhApi
         Task.from_any(result.not_nil!)
       end
 
+      # Polle `task(...)` jusqu'à un état terminal (`done?` vrai). Retourne
+      # la `Task` finale ; lève `OvhApi::TaskTimeout` si `timeout` est
+      # dépassé avant que l'état ne soit terminal.
+      #
+      # Utilisé après `reinstall`, `prepare_rescue`, `boot_from_disk`,
+      # `reboot` pour se passer de la boucle `loop do … sleep` côté
+      # appelant. Une form `do |task| … end` est fournie pour tracer
+      # l'avancement à chaque tour (utile pour logger `task.status` /
+      # `task.last_update`).
+      #
+      # ```
+      # task = client.dedicated_servers.reinstall(...)
+      # final = client.dedicated_servers.wait_for_task(
+      #   service_name: "ns1.ip-1-2-3.eu",
+      #   task_id: task.id,
+      # ) { |t| Log.info { "Task #{t.id} : #{t.status}" } }
+      # raise "échec install" if final.failed?
+      # ```
+      def wait_for_task(
+        service_name : String,
+        task_id : Int64 | Int32,
+        interval : Time::Span = 30.seconds,
+        timeout : Time::Span = 1.hour,
+        & : Task ->
+      ) : Task
+        deadline = Time.instant + timeout
+        loop do
+          current = task(service_name, task_id)
+          yield current
+          return current if current.done?
+          if Time.instant >= deadline
+            raise OvhApi::TaskTimeout.new(
+              "wait_for_task : tâche #{task_id} toujours « #{current.status} » " \
+              "après #{timeout} (#{service_name})",
+              current,
+            )
+          end
+          sleep interval
+        end
+      end
+
+      # :ditto:
+      def wait_for_task(
+        service_name : String,
+        task_id : Int64 | Int32,
+        interval : Time::Span = 30.seconds,
+        timeout : Time::Span = 1.hour,
+      ) : Task
+        wait_for_task(service_name, task_id, interval, timeout) { |_| }
+      end
+
       # Liste les `bootId` disponibles pour un serveur.
       #
       # `GET /dedicated/server/{serviceName}/boot` → tableau d'entiers.
