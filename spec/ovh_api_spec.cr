@@ -1,8 +1,10 @@
 require "./spec_helper"
+require "yaml"
 
 describe OvhApi do
   it "expose une version" do
-    OvhApi::VERSION.should eq("0.7.1")
+    yml = YAML.parse(File.read(File.join(__DIR__, "..", "shard.yml")))
+    OvhApi::VERSION.should eq(yml["version"].as_s)
   end
 
   it "liste les endpoints connus" do
