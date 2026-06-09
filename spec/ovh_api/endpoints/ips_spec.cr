@@ -64,8 +64,33 @@ describe OvhApi::Endpoints::Ips do
     )
 
     req = transport.requests.find! { |r| r.method == "POST" }
-    req.url.should contain("192.0.2.0")
+    # Le `/` du bloc CIDR doit être encodé `%2F` dans le path, jamais brut
+    # (sinon OVH le lit comme un séparateur de segments → 404).
+    req.url.should contain("192.0.2.0%2F24/reverse")
+    req.url.should_not contain("192.0.2.0/24/reverse")
     req.body.should contain(%("ipReverse":"192.0.2.10"))
+  end
+
+  it "encode le bloc /64 et cible l'adresse précise pour un reverse IPv6" do
+    transport = FakeTransport.new
+    client = build_client(transport)
+    transport.stub(
+      "POST",
+      /ip\/.+\/reverse$/,
+      status: 200,
+      body: %({"ipReverse":"2001:41d0:306:2b67::1","reverse":"qgra.quimeo.net."}),
+    )
+
+    client.ips.set_reverse(
+      ip: "2001:41d0:306:2b67::/64",
+      ip_reverse: "2001:41d0:306:2b67::1",
+      reverse: "qgra.quimeo.net.",
+    )
+
+    req = transport.requests.find! { |r| r.method == "POST" }
+    # Bloc /64 dans le path (slash encodé), adresse /128 dans le body.
+    req.url.should contain("/ip/2001:41d0:306:2b67::%2F64/reverse")
+    req.body.should contain(%("ipReverse":"2001:41d0:306:2b67::1"))
   end
 
   it "DELETEe un reverse" do

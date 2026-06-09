@@ -17,7 +17,7 @@ module OvhApi
       #
       # `GET /ip/{ip}/reverse` → liste d'IPs au format texte.
       def list(ip : String) : Array(String)
-        result = @client.call("GET", "/ip/#{ip}/reverse")
+        result = @client.call("GET", "/ip/#{encode_ip(ip)}/reverse")
         result.try(&.as_a.map(&.as_s)) || [] of String
       end
 
@@ -25,7 +25,7 @@ module OvhApi
       #
       # `GET /ip/{ip}/reverse/{ipReverse}` → `{ipReverse, reverse}`.
       def get_reverse(ip : String, ip_reverse : String) : Reverse
-        result = @client.call("GET", "/ip/#{ip}/reverse/#{ip_reverse}")
+        result = @client.call("GET", "/ip/#{encode_ip(ip)}/reverse/#{ip_reverse}")
         Reverse.from_any(result.not_nil!)
       end
 
@@ -43,7 +43,7 @@ module OvhApi
         target = ip_reverse || ip
         result = @client.call(
           "POST",
-          "/ip/#{ip}/reverse",
+          "/ip/#{encode_ip(ip)}/reverse",
           body: {"ipReverse" => target, "reverse" => reverse},
         )
         Reverse.from_any(result.not_nil!)
@@ -53,7 +53,18 @@ module OvhApi
       #
       # `DELETE /ip/{ip}/reverse/{ipReverse}`.
       def delete_reverse(ip : String, ip_reverse : String) : Nil
-        @client.call("DELETE", "/ip/#{ip}/reverse/#{ip_reverse}")
+        @client.call("DELETE", "/ip/#{encode_ip(ip)}/reverse/#{ip_reverse}")
+      end
+
+      # Encode l'identifiant d'IP pour un segment de path. Un bloc CIDR
+      # (ex. `2001:41d0:306:2b67::/64`, requis par OVH pour le reverse
+      # IPv6) contient un `/` qui doit être encodé `%2F`, sinon il est
+      # interprété comme séparateur de segments et l'API renvoie 404
+      # « This service does not exist ». Les `:` d'une IPv6 sont des
+      # pchar valides en RFC 3986 : on les laisse bruts (comme les `.`
+      # d'une IPv4, qui passent déjà sans encodage).
+      private def encode_ip(ip : String) : String
+        ip.gsub('/', "%2F")
       end
     end
 
