@@ -363,8 +363,6 @@ module OvhApi
           detail = boot(service_name, id)
           if detail.boot_type == "rescue" && detail.uefi_compatible? && detail.linux_rescue?
             detail
-          else
-            nil
           end
         end
 

@@ -53,10 +53,13 @@ module OvhApi
         redirection : String? = nil,
       ) : ConsumerKey
         body = {} of String => JSON::Any
-        body["accessRules"] = JSON::Any.new(rules.map { |r| JSON::Any.new({
-          "method" => JSON::Any.new(r.method),
-          "path"   => JSON::Any.new(r.path),
-        }) })
+        access_rules = rules.map do |r|
+          JSON::Any.new({
+            "method" => JSON::Any.new(r.method),
+            "path"   => JSON::Any.new(r.path),
+          })
+        end
+        body["accessRules"] = JSON::Any.new(access_rules)
         body["redirection"] = JSON::Any.new(redirection) if redirection
         response = @client.call(
           "POST", "/auth/credential",
@@ -109,7 +112,7 @@ module OvhApi
       # la clé est en validité illimitée.
       def days_until_expiration : Int32?
         exp = @expiration
-        return nil unless exp
+        return unless exp
         ((exp - Time.utc).total_days).to_i
       end
     end

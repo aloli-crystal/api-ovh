@@ -1,5 +1,5 @@
 name: api-ovh
-version: 0.7.3
+version: 0.7.4
 
 description: >
   Client Crystal pur (stdlib uniquement) pour l'API OVHcloud v1.
@@ -19,4 +19,4 @@ license: MIT
 development_dependencies:
   ameba:
     github: crystal-ameba/ameba
-    version: "~> 1.6"
+    version: "~> 1.7"
