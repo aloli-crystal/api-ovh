@@ -1,5 +1,5 @@
 name: api-ovh
-version: 0.7.5
+version: 0.7.6
 
 description: >
   Client Crystal pur (stdlib uniquement) pour l'API OVHcloud v1.
